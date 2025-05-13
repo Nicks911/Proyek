@@ -1,546 +1,498 @@
-// static/js/main.js
-window.addEventListener('load', init);
-
-// Variabel global
-let scene, camera, renderer, controls;
-let clock = new THREE.Clock();
-let water, waterGeometry, waterMaterial;
-let buildings = [];
-let lights = [];
-let stats;
-let gui;
-let isLoading = true;
-let keyState = {};
-
-// Parameter untuk dimanipulasi dengan GUI
-let params = {
-    waterColor: 0x0077be,
-    waterOpacity: 0.8,
-    waterScale: 1.0,
-    waterSpeed: 1.0,
-    sunlightIntensity: 1.0,
-    fogDensity: 0.02,
-    ambientIntensity: 0.5
-};
-
-function init() {
-    // Inisialisasi Three.js
-    scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x0077be, params.fogDensity);
-    
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-    camera.position.set(0, 20, 50);
-    
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    document.body.appendChild(renderer.domElement);
-    
-    // Stats untuk performa
-    stats = new Stats();
-    stats.domElement.style.position = 'absolute';
-    stats.domElement.style.top = '0px';
-    stats.domElement.style.right = '0px';
-    document.body.appendChild(stats.domElement);
-    
-    // Controls
-    controls = new THREE.PointerLockControls(camera, document.body);
-    
-    document.addEventListener('click', function() {
-        controls.lock();
-    });
-    
-    document.addEventListener('keydown', function(event) {
-        keyState[event.code] = true;
-    });
-    
-    document.addEventListener('keyup', function(event) {
-        keyState[event.code] = false;
-    });
-
-    // Buat GUI
-    createGUI();
-    
-    // Tambahkan elemen ke scene
-    createLights();
-    createWater();
-    createSeabed();
-    createAtlantisCityRuins();
-    createUnderwaterEnvironment();
-    
-    // Menangani resize window
-    window.addEventListener('resize', onWindowResize);
-    
-    // Mulai loop animasi
-    setTimeout(() => {
-        document.getElementById('loading').style.display = 'none';
-        isLoading = false;
-    }, 3000);
-    
-    animate();
-}
-
-function createGUI() {
-    gui = new dat.GUI();
-    
-    const waterFolder = gui.addFolder('Water');
-    waterFolder.addColor(params, 'waterColor').onChange(function(value) {
-        waterMaterial.color.set(value);
-    });
-    waterFolder.add(params, 'waterOpacity', 0, 1).onChange(function(value) {
-        waterMaterial.opacity = value;
-    });
-    waterFolder.add(params, 'waterScale', 0.1, 2).onChange(function(value) {
-        waterMaterial.scale = value;
-    });
-    waterFolder.add(params, 'waterSpeed', 0.1, 3).onChange(function(value) {
-        // Update water speed
-    });
-    waterFolder.open();
-    
-    const lightingFolder = gui.addFolder('Lighting');
-    lightingFolder.add(params, 'sunlightIntensity', 0, 2).onChange(function(value) {
-        lights[0].intensity = value;
-    });
-    lightingFolder.add(params, 'ambientIntensity', 0, 1).onChange(function(value) {
-        lights[1].intensity = value;
-    });
-    lightingFolder.add(params, 'fogDensity', 0, 0.1).onChange(function(value) {
-        scene.fog.density = value;
-    });
-    lightingFolder.open();
-}
-
-function createLights() {
-    // Cahaya matahari yang menembus air
-    const sunlight = new THREE.DirectionalLight(0xffffff, params.sunlightIntensity);
-    sunlight.position.set(50, 100, 50);
-    sunlight.castShadow = true;
-    
-    // Konfigurasi shadow
-    sunlight.shadow.mapSize.width = 2048;
-    sunlight.shadow.mapSize.height = 2048;
-    sunlight.shadow.camera.near = 0.5;
-    sunlight.shadow.camera.far = 500;
-    sunlight.shadow.camera.left = -100;
-    sunlight.shadow.camera.right = 100;
-    sunlight.shadow.camera.top = 100;
-    sunlight.shadow.camera.bottom = -100;
-    
-    scene.add(sunlight);
-    lights.push(sunlight);
-    
-    // Cahaya ambient untuk efek kedalaman air
-    const ambient = new THREE.AmbientLight(0x0077be, params.ambientIntensity);
-    scene.add(ambient);
-    lights.push(ambient);
-    
-    // Beberapa point light untuk bangunan Atlantis
-    for (let i = 0; i < 5; i++) {
-        const x = (Math.random() - 0.5) * 100;
-        const z = (Math.random() - 0.5) * 100;
+class OpenWorld {
+    constructor() {
+        // Scene setup
+        this.container = document.getElementById('container');
+        this.loadingElement = document.getElementById('loading');
         
-        const pointLight = new THREE.PointLight(0x4cc9f0, 1, 50);
-        pointLight.position.set(x, 5, z);
-        scene.add(pointLight);
-        lights.push(pointLight);
+        // Create renderer with WebGL2
+        this.renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            powerPreference: "high-performance",
+            alpha: false
+        });
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 0.5;
         
-        // Helper untuk melihat posisi light (dimatikan pada produksi)
-        // const pointLightHelper = new THREE.PointLightHelper(pointLight, 1);
-        // scene.add(pointLightHelper);
-    }
-}
-
-function createWater() {
-    // Membuat material water yang bergerak
-    waterGeometry = new THREE.PlaneGeometry(1000, 1000, 100, 100);
-    
-    // Tekstur untuk shader water
-    const waterTexture = new THREE.TextureLoader();
-    
-    // Membuat material untuk air
-    waterMaterial = new THREE.MeshPhongMaterial({
-        color: params.waterColor,
-        transparent: true,
-        opacity: params.waterOpacity,
-        side: THREE.DoubleSide
-    });
-    
-    // Membuat mesh untuk air
-    water = new THREE.Mesh(waterGeometry, waterMaterial);
-    water.rotation.x = -Math.PI / 2;
-    water.position.y = 30;
-    scene.add(water);
-}
-
-function createSeabed() {
-    // Geometry untuk dasar laut
-    const seabedGeometry = new THREE.PlaneGeometry(1000, 1000, 100, 100);
-    
-    // Material untuk dasar laut
-    const seabedMaterial = new THREE.MeshPhongMaterial({
-        color: 0x654321,
-        side: THREE.DoubleSide,
-        wireframe: false
-    });
-    
-    // Membuat bentuk dasar laut yang tidak rata
-    for (let i = 0; i < seabedGeometry.vertices.length; i++) {
-        // Membuat permukaan yang tidak rata dengan noise
-        const vertex = seabedGeometry.vertices[i];
-        const x = vertex.x / 30;
-        const y = vertex.y / 30;
-        vertex.z = (Math.sin(x) + Math.sin(y)) * 2;
-    }
-    
-    seabedGeometry.verticesNeedUpdate = true;
-    seabedGeometry.computeVertexNormals();
-    
-    // Membuat mesh untuk dasar laut
-    const seabed = new THREE.Mesh(seabedGeometry, seabedMaterial);
-    seabed.rotation.x = -Math.PI / 2;
-    seabed.position.y = -50;
-    seabed.receiveShadow = true;
-    scene.add(seabed);
-}
-
-function createAtlantisCityRuins() {
-    // Membuat kota Atlantis yang tenggelam
-    
-    // Bangunan-bangunan utama
-    for (let i = 0; i < 50; i++) {
-        createBuilding();
-    }
-    
-    // Piramida besar di tengah
-    createMainPyramid();
-    
-    // Patung-patung dan monumen
-    createStatues();
-    
-    // Jalan-jalan dan struktur lainnya
-    createRoads();
-}
-
-function createBuilding() {
-    // Buat bangunan acak
-    const size = Math.random() * 10 + 5;
-    const height = Math.random() * 15 + 10;
-    
-    const buildingGeometry = new THREE.BoxGeometry(size, height, size);
-    
-    // Beberapa variasi material untuk bangunan
-    const materials = [
-        new THREE.MeshPhongMaterial({ color: 0xD4AF37 }), // Gold
-        new THREE.MeshPhongMaterial({ color: 0xC0C0C0 }), // Silver
-        new THREE.MeshPhongMaterial({ color: 0xFFFFFF }), // White marble
-        new THREE.MeshPhongMaterial({ color: 0x44944A })  // Green stone
-    ];
-    
-    const building = new THREE.Mesh(
-        buildingGeometry,
-        materials[Math.floor(Math.random() * materials.length)]
-    );
-    
-    // Posisi acak di radius 100
-    const radius = Math.random() * 100;
-    const angle = Math.random() * Math.PI * 2;
-    
-    building.position.x = Math.cos(angle) * radius;
-    building.position.y = -height / 2;
-    building.position.z = Math.sin(angle) * radius;
-    
-    // Rotasi acak
-    building.rotation.y = Math.random() * Math.PI * 2;
-    
-    building.castShadow = true;
-    building.receiveShadow = true;
-    
-    scene.add(building);
-    buildings.push(building);
-}
-
-function createMainPyramid() {
-    // Buat piramida utama
-    const pyramidGeometry = new THREE.ConeGeometry(30, 40, 4);
-    const pyramidMaterial = new THREE.MeshPhongMaterial({ color: 0xFFD700 });
-    
-    const pyramid = new THREE.Mesh(pyramidGeometry, pyramidMaterial);
-    pyramid.position.set(0, -20, 0);
-    pyramid.castShadow = true;
-    pyramid.receiveShadow = true;
-    
-    scene.add(pyramid);
-    buildings.push(pyramid);
-}
-
-function createStatues() {
-    // Beberapa patung di sekitar kota
-    for (let i = 0; i < 10; i++) {
-        // Buat patung sederhana (silinder sebagai tubuh)
-        const bodyGeometry = new THREE.CylinderGeometry(1, 1, 5, 8);
-        const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0xFFFFFF });
-        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        // Force WebGL2
+        this.renderer.getContext().getExtension('EXT_color_buffer_float');
         
-        // Buat kepala (bola)
-        const headGeometry = new THREE.SphereGeometry(1, 16, 16);
-        const headMaterial = new THREE.MeshPhongMaterial({ color: 0xFFFFFF });
-        const head = new THREE.Mesh(headGeometry, headMaterial);
-        head.position.y = 3;
+        this.container.appendChild(this.renderer.domElement);
         
-        // Grup untuk patung
-        const statue = new THREE.Group();
-        statue.add(body);
-        statue.add(head);
+        // Initialize Scene
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x88ccff);
+        this.scene.fog = new THREE.FogExp2(0x88ccff, 0.002);
         
-        // Posisi acak di radius 80-150
-        const radius = Math.random() * 70 + 80;
-        const angle = Math.random() * Math.PI * 2;
+        // Camera
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        this.camera.position.set(0, 1.6, 5);
         
-        statue.position.x = Math.cos(angle) * radius;
-        statue.position.y = -2.5;
-        statue.position.z = Math.sin(angle) * radius;
+        // Controls
+        this.initControls();
         
-        statue.castShadow = true;
-        statue.receiveShadow = true;
+        // Set up clock for animations
+        this.clock = new THREE.Clock();
         
-        scene.add(statue);
-    }
-}
-
-function createRoads() {
-    // Buat jalan-jalan di kota
-    for (let i = 0; i < 5; i++) {
-        const roadGeometry = new THREE.PlaneGeometry(5, 100);
-        const roadMaterial = new THREE.MeshPhongMaterial({ 
-            color: 0x444444,
-            side: THREE.DoubleSide
+        // Player movement state
+        this.velocity = new THREE.Vector3();
+        this.direction = new THREE.Vector3();
+        this.playerOnFloor = true;
+        
+        // Input tracking
+        this.keyStates = {};
+        this.pointerLocked = false;
+        
+        // World objects
+        this.models = [];
+        
+        // Bind methods
+        this.animate = this.animate.bind(this);
+        this.onWindowResize = this.onWindowResize.bind(this);
+        
+        // Event listeners
+        window.addEventListener('resize', this.onWindowResize);
+        document.addEventListener('keydown', (event) => { this.keyStates[event.code] = true; });
+        document.addEventListener('keyup', (event) => { this.keyStates[event.code] = false; });
+        document.addEventListener('click', () => this.lockPointer());
+        
+        document.addEventListener('pointerlockchange', () => {
+            this.pointerLocked = document.pointerLockElement === this.renderer.domElement;
         });
         
-        const road = new THREE.Mesh(roadGeometry, roadMaterial);
-        road.rotation.x = Math.PI / 2;
-        road.rotation.y = i * Math.PI / 5;
-        road.position.y = -0.5;
+        // Initialize world
+        this.initWorld();
         
-        scene.add(road);
+        // Start animation loop
+        this.animate();
     }
     
-    // Buat jalan melingkar
-    const circleGeometry = new THREE.RingGeometry(45, 50, 64);
-    const circleMaterial = new THREE.MeshPhongMaterial({ 
-        color: 0x444444,
-        side: THREE.DoubleSide
-    });
-    
-    const circleRoad = new THREE.Mesh(circleGeometry, circleMaterial);
-    circleRoad.rotation.x = Math.PI / 2;
-    circleRoad.position.y = -0.5;
-    
-    scene.add(circleRoad);
-}
-
-function createUnderwaterEnvironment() {
-    // Buat berbagai objek bawah air seperti karang dan tanaman
-    
-    // Karang
-    for (let i = 0; i < 100; i++) {
-        const size = Math.random() * 3 + 1;
-        const coralGeometry = new THREE.DodecahedronGeometry(size, 0);
+    // Initialize world geometry and lighting
+    async initWorld() {
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 2);
+        this.scene.add(ambientLight);
         
-        // Variasi warna untuk karang
-        const colors = [0xFF5733, 0xC70039, 0x900C3F, 0x581845, 0xFF8D1A];
-        const coralMaterial = new THREE.MeshPhongMaterial({ 
-            color: colors[Math.floor(Math.random() * colors.length)]
-        });
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 3);
+        directionalLight.position.set(1, 50, 1);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.left = -50;
+        directionalLight.shadow.camera.right = 50;
+        directionalLight.shadow.camera.top = 50;
+        directionalLight.shadow.camera.bottom = -50;
+        directionalLight.shadow.camera.far = 100;
+        this.scene.add(directionalLight);
         
-        const coral = new THREE.Mesh(coralGeometry, coralMaterial);
+        // Create world terrain
+        this.createTerrain();
         
-        // Posisi acak
-        const radius = Math.random() * 200 + 100;
-        const angle = Math.random() * Math.PI * 2;
+        // Create sky and day/night cycle
+        this.createSky();
         
-        coral.position.x = Math.cos(angle) * radius;
-        coral.position.y = -45 + Math.random() * 5;
-        coral.position.z = Math.sin(angle) * radius;
+        // Create water
+        this.createWater();
         
-        // Rotasi acak
-        coral.rotation.x = Math.random() * Math.PI;
-        coral.rotation.y = Math.random() * Math.PI;
-        coral.rotation.z = Math.random() * Math.PI;
+        // Load GLB model
+        await this.loadModels();
         
-        coral.castShadow = true;
+        // Place some trees and rocks
+        this.createEnvironment();
         
-        scene.add(coral);
+        // Hide loading screen
+        this.loadingElement.classList.add('hidden');
     }
     
-    // Tanaman laut
-    for (let i = 0; i < 200; i++) {
-        const height = Math.random() * 5 + 3;
-        const plantGeometry = new THREE.CylinderGeometry(0.5, 0.1, height, 8);
+    // Create terrain
+    createTerrain() {
+        // Create ground plane
+        const groundGeometry = new THREE.PlaneGeometry(1000, 1000, 100, 100);
+        groundGeometry.rotateX(-Math.PI / 2);
         
-        // Variasi warna untuk tanaman
-        const colors = [0x0B6623, 0x088F8F, 0x0FFF50, 0x50C878, 0x3CB371];
-        const plantMaterial = new THREE.MeshPhongMaterial({ 
-            color: colors[Math.floor(Math.random() * colors.length)]
-        });
-        
-        const plant = new THREE.Mesh(plantGeometry, plantMaterial);
-        
-        // Posisi acak
-        const radius = Math.random() * 200 + 50;
-        const angle = Math.random() * Math.PI * 2;
-        
-        plant.position.x = Math.cos(angle) * radius;
-        plant.position.y = -45 + height / 2;
-        plant.position.z = Math.sin(angle) * radius;
-        
-        // Sedikit rotasi acak
-        plant.rotation.x = (Math.random() - 0.5) * 0.2;
-        plant.rotation.z = (Math.random() - 0.5) * 0.2;
-        
-        plant.castShadow = true;
-        
-        scene.add(plant);
-    }
-    
-    // Ikan-ikan
-    createFishes();
-}
-
-function createFishes() {
-    // Buat gerombolan ikan
-    for (let i = 0; i < 50; i++) {
-        const fishGeometry = new THREE.ConeGeometry(1, 3, 8);
-        
-        // Variasi warna untuk ikan
-        const colors = [0x4169E1, 0x6495ED, 0x00BFFF, 0x1E90FF, 0xADD8E6];
-        const fishMaterial = new THREE.MeshPhongMaterial({ 
-            color: colors[Math.floor(Math.random() * colors.length)]
-        });
-        
-        const fish = new THREE.Mesh(fishGeometry, fishMaterial);
-        
-        // Posisi acak
-        const radius = Math.random() * 100 + 50;
-        const angle = Math.random() * Math.PI * 2;
-        const height = Math.random() * 20 + 5;
-        
-        fish.position.x = Math.cos(angle) * radius;
-        fish.position.y = height;
-        fish.position.z = Math.sin(angle) * radius;
-        
-        // Rotasi untuk menghadap ke arah pusat
-        fish.rotation.y = Math.atan2(fish.position.x, fish.position.z);
-        
-        scene.add(fish);
-        
-        // Animasi pergerakan ikan
-        animateFish(fish);
-    }
-}
-
-function animateFish(fish) {
-    // Animasi pergerakan ikan dengan Tween.js
-    const initialPosition = { x: fish.position.x, y: fish.position.y, z: fish.position.z };
-    
-    // Buat titik tujuan acak di sekitar posisi awal
-    const targetX = initialPosition.x + (Math.random() - 0.5) * 20;
-    const targetY = initialPosition.y + (Math.random() - 0.5) * 10;
-    const targetZ = initialPosition.z + (Math.random() - 0.5) * 20;
-    
-    // Tween untuk pergerakan
-    new TWEEN.Tween(fish.position)
-        .to({ x: targetX, y: targetY, z: targetZ }, Math.random() * 5000 + 5000)
-        .easing(TWEEN.Easing.Sinusoidal.InOut)
-        .onComplete(function() {
-            // Setelah sampai tujuan, kembali ke posisi awal
-            new TWEEN.Tween(fish.position)
-                .to(initialPosition, Math.random() * 5000 + 5000)
-                .easing(TWEEN.Easing.Sinusoidal.InOut)
-                .onComplete(function() {
-                    // Ulangi animasi
-                    animateFish(fish);
-                })
-                .start();
+        // Add some terrain variation
+        const vertices = groundGeometry.attributes.position.array;
+        for (let i = 0; i < vertices.length; i += 3) {
+            // Skip the center area to keep it flat for player
+            const x = vertices[i];
+            const z = vertices[i + 2];
+            const distance = Math.sqrt(x * x + z * z);
+            
+            if (distance > 10) {
+                vertices[i + 1] = this.noise(vertices[i] / 20, vertices[i + 2] / 20) * 2;
                 
-            // Update rotasi untuk menghadap ke arah pergerakan
-            fish.rotation.y = Math.atan2(initialPosition.x - fish.position.x, initialPosition.z - fish.position.z);
-        })
-        .start();
-        
-    // Update rotasi untuk menghadap ke arah pergerakan
-    fish.rotation.y = Math.atan2(targetX - fish.position.x, targetZ - fish.position.z);
-}
-
-function onWindowResize() {
-    // Update kamera dan renderer saat ukuran window berubah
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-}
-
-function moveCamera() {
-    // Kecepatan pergerakan
-    const speed = 0.5;
-    
-    // Pergerakan WASD
-    if (keyState['KeyW']) {
-        controls.moveForward(speed);
-    }
-    if (keyState['KeyS']) {
-        controls.moveForward(-speed);
-    }
-    if (keyState['KeyA']) {
-        controls.moveRight(-speed);
-    }
-    if (keyState['KeyD']) {
-        controls.moveRight(speed);
-    }
-    
-    // Pergerakan vertikal
-    if (keyState['Space']) {
-        camera.position.y += speed;
-    }
-    if (keyState['ShiftLeft']) {
-        camera.position.y -= speed;
-    }
-}
-
-function animateWater() {
-    // Animasi air bergelombang
-    if (waterGeometry && waterGeometry.vertices) {
-        const time = clock.getElapsedTime() * params.waterSpeed;
-        
-        for (let i = 0; i < waterGeometry.vertices.length; i++) {
-            const vertex = waterGeometry.vertices[i];
-            const x = vertex.x / 30;
-            const y = vertex.y / 30;
-            vertex.z = Math.sin(x + time) * Math.cos(y + time) * 2;
+                // Add mountains in the distance
+                if (distance > 50) {
+                    const mountainFactor = Math.pow((distance - 50) / 50, 2) * 15;
+                    vertices[i + 1] += this.noise(vertices[i] / 100, vertices[i + 2] / 100) * mountainFactor;
+                }
+            }
         }
         
-        waterGeometry.verticesNeedUpdate = true;
-        waterGeometry.computeVertexNormals();
+        // Update normals after modifying vertices
+        groundGeometry.computeVertexNormals();
+        
+        // Create ground material
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0x567d46,
+            metalness: 0,
+            roughness: 0.9
+        });
+        
+        // Create ground mesh
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.receiveShadow = true;
+        ground.name = 'ground';
+        this.scene.add(ground);
+        
+        // Create collision box for the ground
+        this.groundY = 0;
+    }
+    
+    // Simple noise function for terrain generation
+    noise(x, z) {
+        return Math.sin(x * 5) * Math.cos(z * 2.5) + 
+                Math.sin(x * 1.5) * Math.cos(z * 6.5) * 0.5 + 
+                Math.sin(x * 0.12) * Math.cos(z * 0.15) * 5;
+    }
+    
+    // Create sky with sun
+    createSky() {
+        // Create sky
+        this.sky = new Sky();
+        this.sky.scale.setScalar(450000);
+        this.scene.add(this.sky);
+        
+        // Configure sky
+        const skyUniforms = this.sky.material.uniforms;
+        skyUniforms['turbidity'].value = 10;
+        skyUniforms['rayleigh'].value = 2;
+        skyUniforms['mieCoefficient'].value = 0.005;
+        skyUniforms['mieDirectionalG'].value = 0.8;
+        
+        // Sun position parameters
+        this.parameters = {
+            elevation: 30,
+            azimuth: 180
+        };
+        
+        const sun = new THREE.Vector3();
+        this.updateSun = () => {
+            const phi = THREE.MathUtils.degToRad(90 - this.parameters.elevation);
+            const theta = THREE.MathUtils.degToRad(this.parameters.azimuth);
+            
+            sun.setFromSphericalCoords(1, phi, theta);
+            this.sky.material.uniforms['sunPosition'].value.copy(sun);
+            if (this.water) {
+                this.water.material.uniforms['sunDirection'].value.copy(sun).normalize();
+            }
+        };
+        
+        this.updateSun();
+    }
+    
+    // Create water plane
+    createWater() {
+        // Create water geometry
+        const waterGeometry = new THREE.PlaneGeometry(10000, 10000);
+        
+        // Create water
+        this.water = new Water(
+            waterGeometry,
+            {
+                textureWidth: 512,
+                textureHeight: 512,
+                waterNormals: new THREE.TextureLoader().load('https://unpkg.com/three@0.159.0/examples/textures/waternormals.jpg', (texture) => {
+                    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+                }),
+                sunDirection: new THREE.Vector3(),
+                sunColor: 0xffffff,
+                waterColor: 0x001e0f,
+                distortionScale: 3.7,
+                fog: this.scene.fog !== undefined
+            }
+        );
+        
+        // Position the water
+        this.water.rotation.x = -Math.PI / 2;
+        this.water.position.y = -2;
+        this.scene.add(this.water);
+    }
+    
+    // Load GLB models
+    async loadModels() {
+        const loader = new GLTFLoader();
+        
+        try {
+            // Since we don't have real GLB models here, we'll create placeholders
+            // In a real implementation, you would replace this with actual model loading
+            
+            // Create a simple tree model using basic geometries
+            this.treeModel = new THREE.Group();
+            
+            // Tree trunk
+            const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.3, 2, 8);
+            const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.9 });
+            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+            trunk.castShadow = true;
+            trunk.position.y = 1;
+            this.treeModel.add(trunk);
+            
+            // Tree foliage
+            const foliageGeometry = new THREE.ConeGeometry(1.5, 3, 8);
+            const foliageMaterial = new THREE.MeshStandardMaterial({ color: 0x2d5e3e, roughness: 0.8 });
+            const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+            foliage.castShadow = true;
+            foliage.position.y = 3;
+            this.treeModel.add(foliage);
+            
+            // Create a rock model
+            this.rockModel = new THREE.Group();
+            const rockGeometry = new THREE.DodecahedronGeometry(1, 0);
+            const rockMaterial = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.9 });
+            const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+            rock.castShadow = true;
+            rock.scale.set(1, 0.5, 0.8);
+            rock.rotation.set(0.2, 0.4, 0.1);
+            this.rockModel.add(rock);
+            
+            // Create a house model
+            this.houseModel = new THREE.Group();
+            
+            // House base
+            const baseGeometry = new THREE.BoxGeometry(3, 2.5, 4);
+            const baseMaterial = new THREE.MeshStandardMaterial({ color: 0xd9bb97, roughness: 0.8 });
+            const base = new THREE.Mesh(baseGeometry, baseMaterial);
+            base.castShadow = true;
+            base.position.y = 1.25;
+            this.houseModel.add(base);
+            
+            // House roof
+            const roofGeometry = new THREE.ConeGeometry(3, 2, 4);
+            const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x8b3e2f, roughness: 0.7 });
+            const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+            roof.rotation.y = Math.PI / 4;
+            roof.position.y = 3.5;
+            this.houseModel.add(roof);
+            
+            // House door
+            const doorGeometry = new THREE.BoxGeometry(0.8, 1.5, 0.1);
+            const doorMaterial = new THREE.MeshStandardMaterial({ color: 0x5c2e0c, roughness: 0.8 });
+            const door = new THREE.Mesh(doorGeometry, doorMaterial);
+            door.position.set(0, 0.75, 2.01);
+            this.houseModel.add(door);
+            
+            // House windows
+            const windowGeometry = new THREE.BoxGeometry(0.6, 0.6, 0.1);
+            const windowMaterial = new THREE.MeshStandardMaterial({ color: 0xadd8e6, roughness: 0.2 });
+            
+            const window1 = new THREE.Mesh(windowGeometry, windowMaterial);
+            window1.position.set(-1, 1.5, 2.01);
+            this.houseModel.add(window1);
+            
+            const window2 = new THREE.Mesh(windowGeometry, windowMaterial);
+            window2.position.set(1, 1.5, 2.01);
+            this.houseModel.add(window2);
+            
+            console.log("Models created successfully");
+        } catch (error) {
+            console.error("Error creating models:", error);
+        }
+    }
+    
+    // Create environment by placing objects around the scene
+    createEnvironment() {
+        // Place trees
+        for (let i = 0; i < 100; i++) {
+            if (!this.treeModel) continue;
+            
+            const x = (Math.random() - 0.5) * 200;
+            const z = (Math.random() - 0.5) * 200;
+            
+            // Don't place trees in the starting area
+            const distanceFromCenter = Math.sqrt(x * x + z * z);
+            if (distanceFromCenter < 15) continue;
+            
+            const tree = this.treeModel.clone();
+            
+            // Scale variation
+            const scale = 0.8 + Math.random() * 0.7;
+            tree.scale.set(scale, scale, scale);
+            
+            // Rotation variation
+            tree.rotation.y = Math.random() * Math.PI * 2;
+            
+            // Position
+            tree.position.set(x, 0, z);
+            
+            // Add to scene
+            this.scene.add(tree);
+        }
+        
+        // Place rocks
+        for (let i = 0; i < 30; i++) {
+            if (!this.rockModel) continue;
+            
+            const x = (Math.random() - 0.5) * 150;
+            const z = (Math.random() - 0.5) * 150;
+            
+            // Don't place rocks in the starting area
+            const distanceFromCenter = Math.sqrt(x * x + z * z);
+            if (distanceFromCenter < 10) continue;
+            
+            const rock = this.rockModel.clone();
+            
+            // Scale variation
+            const scale = 0.5 + Math.random() * 1.5;
+            rock.scale.set(scale, scale * 0.8, scale);
+            
+            // Rotation variation
+            rock.rotation.y = Math.random() * Math.PI * 2;
+            
+            // Position
+            rock.position.set(x, 0, z);
+            
+            // Add to scene
+            this.scene.add(rock);
+        }
+        
+        // Place houses
+        if (this.houseModel) {
+            const housePositions = [
+                { x: 20, z: 15, rotation: Math.PI * 0.5 },
+                { x: 25, z: 20, rotation: Math.PI * 0.75 },
+                { x: -30, z: -15, rotation: Math.PI * 1.5 }
+            ];
+            
+            housePositions.forEach(pos => {
+                const house = this.houseModel.clone();
+                house.position.set(pos.x, 0, pos.z);
+                house.rotation.y = pos.rotation;
+                this.scene.add(house);
+            });
+        }
+    }
+    
+    // Initialize player controls
+    initControls() {
+        // Set up pointer lock controls for first-person view
+        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.enableDamping = true;
+        this.controls.dampingFactor = 0.05;
+        this.controls.screenSpacePanning = false;
+        this.controls.maxPolarAngle = Math.PI / 2;
+        this.controls.minDistance = 1;
+        this.controls.maxDistance = 20;
+        this.controls.enabled = false; // Start with controls disabled
+        
+        // Set up player movement
+        this.playerHeight = 1.6;
+        this.playerSpeed = 5.0;
+        this.jumpVelocity = 5.0;
+        this.gravity = 30.0;
+    }
+    
+    // Lock/unlock pointer for camera control
+    lockPointer() {
+        if (!this.pointerLocked) {
+            this.renderer.domElement.requestPointerLock();
+        }
+    }
+    
+    // Update player position and camera
+    updatePlayer(deltaTime) {
+        // Only move if pointer is locked
+        if (!this.pointerLocked) return;
+        
+        // Calculate movement direction based on camera orientation
+        this.direction.z = Number(this.keyStates['KeyS']) - Number(this.keyStates['KeyW']);
+        this.direction.x = Number(this.keyStates['KeyD']) - Number(this.keyStates['KeyA']);
+        this.direction.normalize();
+        
+        // Check for jump
+        if (this.keyStates['Space'] && this.playerOnFloor) {
+            this.velocity.y = this.jumpVelocity;
+            this.playerOnFloor = false;
+        }
+        
+        // Apply gravity
+        if (!this.playerOnFloor) {
+            this.velocity.y -= this.gravity * deltaTime;
+        }
+        
+        // Move camera
+        const speedMultiplier = this.keyStates['ShiftLeft'] ? 2.0 : 1.0;
+        const actualSpeed = this.playerSpeed * speedMultiplier;
+        
+        // Forward/backward movement
+        this.camera.position.z += this.direction.z * actualSpeed * deltaTime;
+        
+        // Left/right movement
+        this.camera.position.x += this.direction.x * actualSpeed * deltaTime;
+        
+        // Apply vertical velocity
+        this.camera.position.y += this.velocity.y * deltaTime;
+        
+        // Simple ground collision
+        if (this.camera.position.y < this.playerHeight) {
+            this.camera.position.y = this.playerHeight;
+            this.velocity.y = 0;
+            this.playerOnFloor = true;
+        }
+        
+        // Keep camera at constant height
+        this.controls.target.copy(this.camera.position);
+        this.controls.target.y = this.camera.position.y - 0.5;
+        this.controls.update();
+    }
+    
+    // Handle window resize
+    onWindowResize() {
+        this.camera.aspect = window.innerWidth / window.innerHeight;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    
+    // Main animation loop
+    animate() {
+        requestAnimationFrame(this.animate);
+        
+        const deltaTime = Math.min(this.clock.getDelta(), 0.1);
+        
+        // Update player position
+        this.updatePlayer(deltaTime);
+        
+        // Update water
+        if (this.water) {
+            this.water.material.uniforms['time'].value += deltaTime;
+        }
+        
+        // Day/night cycle
+        if (this.parameters) {
+            this.parameters.azimuth += deltaTime * 1; // Slow day/night cycle
+            if (this.parameters.azimuth > 360) this.parameters.azimuth -= 360;
+            this.updateSun();
+        }
+        
+        // Render scene
+        this.renderer.render(this.scene, this.camera);
     }
 }
 
-function animate() {
-    requestAnimationFrame(animate);
-    
-    if (isLoading) return;
-    
-    TWEEN.update();
-    stats.update();
-    
-    // Gerakan kontrol camera
-    if (controls.isLocked) {
-        moveCamera();
-    }
-    
-    // Animasi air
-    animateWater();
-    
-    // Render scene
-    renderer.render(scene, camera);
+// Initialize application
+document.addEventListener('DOMContentLoaded', () => {
+    const world = new OpenWorld();
+});
+
+// Initialize immediately if DOM is already loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        const world = new OpenWorld();
+    });
+} else {
+    const world = new OpenWorld();
 }
