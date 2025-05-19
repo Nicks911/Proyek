@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mini City - Three.js</title>
+    <title>GRAFKOMMMMMMM</title>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
@@ -27,7 +27,10 @@
     </script>
 </head>
 <body>
-    <div id="info">WASD untuk bergerak, Mouse untuk melihat sekitar</div>
+    <div id="info">WASD untuk bergerak, Mouse untuk melihat sekitar, F untuk flashlight, N untuk toggle malam/siang</div>
+    <div id="compass" style="position: absolute; top: 10px; left: 10px; color: white; font-family: monospace; background-color: rgba(0, 0, 0, 0.5); padding: 5px; border-radius: 5px;">
+  Direction: -
+</div>
     
     <script type="module">
         // Import Three.js dari CDN dengan path yang benar
@@ -45,9 +48,43 @@
         let prevTime = performance.now();
         const speed = 100.0;
 
+        // Deklarasikan variabel global untuk lampu dan status mode
+        let ambientLight, directionalLight;
+        let isNight = false;
+        
+        // Variabel untuk flashlight
+        let flashlight;
+        let isFlashlightOn = false;
+
+        // Variabel untuk smooth camera movement
+        let mouseEnabled = false;
+        const mouseVelocity = new THREE.Vector2(0, 0);
+        const mouseAcceleration = 0.1;
+        const mouseDamping = 0.7;
+
         // Kontrol kamera
         const cameraRotation = new THREE.Euler(0, 0, 0, 'YXZ');
         
+        // Variabel untuk collision detection
+        const collisionObjects = [];
+        const playerRadius = 5; // Radius collision player
+        const playerHeight = 10; // Tinggi player (untuk staircase jika perlu)
+        
+        // Ray casting untuk collision
+        const raycaster = new THREE.Raycaster();
+        
+        let isDriving = false;
+        let carModel = null;  // Simpan referensi model mobil untuk mode mengemudi
+        let carCollisionBox = null;
+
+        let lastPlayerPosition = null;
+
+        // Tambahkan di bagian deklarasi variabel global
+        let leftHeadlight, rightHeadlight;
+
+        // Tambahkan variabel global untuk bulan
+        let moon;
+
         // Inisialisasi scene
         function init() {
             // Membuat scene
@@ -55,18 +92,58 @@
             scene.background = new THREE.Color(0x87CEEB);
             
             // Membuat kamera
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 1, 1000);
-            camera.position.set(0, 10, 50);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 1, 1500); // Ubah dari 5000 ke 10000
+            // Spawn player di X: -1163, Y: 10, Z: -8
+            camera.position.set(-1170, 23, 37);
             camera.rotation.order = 'YXZ';
             
-            // Menambahkan cahaya
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            // Inisialisasi cahaya dengan variabel global
+            ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
             scene.add(ambientLight);
             
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            directionalLight.position.set(1, 1, 1);
+            // Directional light (matahari)
+            directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(100, 100, 50);
             directionalLight.castShadow = true;
+            
+            // Atur kualitas dan area shadow untuk directional light
+            directionalLight.shadow.mapSize.width = 4096; // Tingkatkan resolusi shadow
+            directionalLight.shadow.mapSize.height = 4096;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 500;
+            directionalLight.shadow.camera.left = -100;
+            directionalLight.shadow.camera.right = 100;
+            directionalLight.shadow.camera.top = 100;
+            directionalLight.shadow.camera.bottom = -100;
             scene.add(directionalLight);
+            
+            // Setup flashlight dengan shadow yang lebih detail
+            flashlight = new THREE.SpotLight(0xffffff, 100, 2000, Math.PI/4, 0.5, 1);
+            flashlight.castShadow = true;
+            flashlight.shadow.mapSize.width = 1024;
+            flashlight.shadow.mapSize.height = 1024;
+            flashlight.shadow.camera.near = 0.5;
+            flashlight.shadow.camera.far = 100;
+            flashlight.shadow.bias = -0.0001;
+            scene.add(flashlight);
+            scene.add(flashlight.target);
+            
+            // Setup headlights untuk mobil
+            leftHeadlight = new THREE.SpotLight(0xffffff, 100, 2000, Math.PI/4, 0.5, 1);
+            rightHeadlight = new THREE.SpotLight(0xffffff, 100, 2000, Math.PI/4, 0.5, 1);
+
+            // Setup kedua headlight
+            [leftHeadlight, rightHeadlight].forEach(light => {
+                light.castShadow = true;
+                light.shadow.mapSize.width = 1024;
+                light.shadow.mapSize.height = 1024;
+                light.shadow.camera.near = 0.5;
+                light.shadow.camera.far = 100;
+                light.shadow.bias = -0.0001;
+                light.visible = false; // Nonaktifkan pada awalnya
+                scene.add(light);
+                scene.add(light.target);
+            });
             
             // Membuat tanah
             createGround();
@@ -80,22 +157,126 @@
             // Tambahkan streetlamp sepanjang ujung map
             createStreetlamps();
             
+            // Load model skyscraper
+            loadSkyscraperModel();
+
+            // Tambahkan batas map untuk collision
+            createMapBoundaries();
+            
+            // Load model car
+            loadCarModel();
+            
+            // Load moon model
+            const moonLoader = new GLTFLoader();
+            moonLoader.load(
+                '/model/moon_idle.glb',
+                function (gltf) {
+                    moon = gltf.scene;
+                    moon.scale.set(50, 50, 50); // Kurangi skala agar proporsional dengan jarak yang lebih dekat
+                    moon.position.set(-500, 1200, -300); // Posisi lebih dekat ke player
+                    
+                    // Tambahkan material emissive yang lebih terang
+                    moon.traverse((child) => {
+                        if (child.isMesh) {
+                            child.material = new THREE.MeshPhongMaterial({
+                                map: child.material.map,
+                                emissive: 0x000000,
+                                emissiveIntensity: 0.8, // Tingkatkan intensitas agar lebih terlihat
+                                side: THREE.DoubleSide
+                            });
+                        }
+                    });
+                    
+                    scene.add(moon);
+                },
+                undefined,
+                function (error) {
+                    console.error('Error loading moon:', error);
+                }
+            );
+            
             // Setup renderer, event listener, dan animasi
-            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                powerPreference: "high-performance" 
+            });
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.shadowMap.darkness = 1; // Menambah kegelapan shadow
             document.body.appendChild(renderer.domElement);
             
+            // Setup event listeners
             window.addEventListener('resize', onWindowResize);
             document.addEventListener('keydown', onKeyDown);
             document.addEventListener('keyup', onKeyUp);
             document.addEventListener('mousemove', onMouseMove);
             
+            // Tambahkan event listener untuk pointer lock
+            document.addEventListener('pointerlockchange', onPointerLockChange);
+            document.addEventListener('mozpointerlockchange', onPointerLockChange);
+            document.addEventListener('webkitpointerlockchange', onPointerLockChange);
+            
+            // Request pointer lock on click
+            document.body.addEventListener('click', requestPointerLock);
+            
             animate();
         }
 
+        function createFlashlight() {
+            // Buat SpotLight untuk flashlight
+            flashlight = new THREE.SpotLight(0xffffff, 100, 2000, Math.PI/4, 0.5, 1);
+            
+            // Setel posisi awal dan target spotlight
+            flashlight.position.set(0, 0, 0);
+            flashlight.target.position.set(0, 0, -1);
+            
+            // Mengaktifkan bayangan untuk flashlight
+            flashlight.castShadow = true;
+            flashlight.shadow.mapSize.width = 1024;
+            flashlight.shadow.mapSize.height = 1024;
+            
+            // Nonaktifkan flashlight pada awalnya
+            flashlight.visible = false;
+            
+            // Tambahkan flashlight dan targetnya ke scene
+            scene.add(flashlight);
+            scene.add(flashlight.target);
+        }
+
+        function toggleFlashlight() {
+            isFlashlightOn = !isFlashlightOn;
+            flashlight.visible = isFlashlightOn;
+            // Opsional: tambahkan efek suara klik
+            playClickSound();
+        }
+        
+        function playClickSound() {
+            // Implementasi Web Audio API untuk efek suara klik
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(isFlashlightOn ? 800 : 600, audioContext.currentTime);
+                
+                gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.1);
+            } catch (e) {
+                console.error('Web Audio API tidak didukung:', e);
+            }
+        }
+
         function createGround() {
-            const groundGeometry = new THREE.PlaneGeometry(5000, 5000);
+            const groundGeometry = new THREE.PlaneGeometry(2500, 1000);
             const groundMaterial = new THREE.MeshStandardMaterial({
                 color: 0x2E8B57,
                 side: THREE.DoubleSide
@@ -110,29 +291,166 @@
             scene.add(gridHelper);
         }
 
+        // Fungsi untuk membuat bounding box pada objek 3D
+        function createCollisionBox(object, offsetX = 0, offsetY = 0, offsetZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1) {
+            // Buat bounding box helper untuk visualisasi (opsional, dapat dikomentari untuk produksi)
+            // const boxHelper = new THREE.BoxHelper(object, 0xff0000);
+            // scene.add(boxHelper);
+            
+            // Hitung bounding box objek
+            const bbox = new THREE.Box3().setFromObject(object);
+            
+            // Buat custom collision box dengan mesh tak terlihat
+            const width = (bbox.max.x - bbox.min.x) * scaleX;
+            const height = (bbox.max.y - bbox.min.y) * scaleY;
+            const depth = (bbox.max.z - bbox.min.z) * scaleZ;
+            
+            const collisionGeometry = new THREE.BoxGeometry(width, height, depth);
+            const collisionMaterial = new THREE.MeshBasicMaterial({
+                color: 0xff0000,
+                wireframe: true,
+                visible: false // Set ke true untuk debugging
+            });
+            
+            const collisionMesh = new THREE.Mesh(collisionGeometry, collisionMaterial);
+            
+            // Posisikan collision box di tengah objek + offset
+            collisionMesh.position.set(
+                (bbox.min.x + bbox.max.x) / 2 + offsetX,
+                (bbox.min.y + bbox.max.y) / 2 + offsetY,
+                (bbox.min.z + bbox.max.z) / 2 + offsetZ
+            );
+            
+            scene.add(collisionMesh);
+            collisionObjects.push(collisionMesh);
+            
+            return collisionMesh;
+        }
+
+        // Fungsi untuk membuat batas map (invisible walls)
+        function createMapBoundaries() {
+            // Karena ground 2500 x 1000, setengahnya:
+            const mapWidth = 1250;  // setengah lebar ground (X)
+            const mapHeight = 500;  // setengah panjang ground (Z)
+            const wallHeight = 100;
+            const wallThickness = 10;
+
+            // Buat material transparan untuk dinding
+            const wallMaterial = new THREE.MeshBasicMaterial({
+                color: 0xff0000,
+                transparent: true,
+                opacity: 0.0, // Tidak terlihat
+                side: THREE.DoubleSide
+            });
+
+            // Dinding Utara (Z negatif)
+            const northWallGeometry = new THREE.BoxGeometry(mapWidth * 2, wallHeight, wallThickness);
+            const northWall = new THREE.Mesh(northWallGeometry, wallMaterial);
+            northWall.position.set(0, wallHeight / 2, -mapHeight);
+            scene.add(northWall);
+            collisionObjects.push(northWall);
+
+            // Dinding Selatan (Z positif)
+            const southWall = northWall.clone();
+            southWall.position.set(0, wallHeight / 2, mapHeight);
+            scene.add(southWall);
+            collisionObjects.push(southWall);
+
+            // Dinding Barat (X negatif)
+            const westWallGeometry = new THREE.BoxGeometry(wallThickness, wallHeight, mapHeight * 2);
+            const westWall = new THREE.Mesh(westWallGeometry, wallMaterial);
+            westWall.position.set(-mapWidth, wallHeight / 2, 0);
+            scene.add(westWall);
+            collisionObjects.push(westWall);
+
+            // Dinding Timur (X positif)
+            const eastWall = westWall.clone();
+            eastWall.position.set(mapWidth, wallHeight / 2, 0);
+            scene.add(eastWall);
+            collisionObjects.push(eastWall);
+        }
+
         async function loadHospitalModel() {
             try {
                 const loader = new GLTFLoader();
-                const gltf = await loader.loadAsync('low_poly_hospital.glb');
+                const gltf = await loader.loadAsync('/model/low_poly_hospital.glb');
                 
                 const hospital = gltf.scene;
-                // Lower the hospital so it sits on the ground (y set to 0)
                 hospital.position.set(-216, 0.1, -229);
-                hospital.scale.set(12, 12, 12);
-                // Set rotasi supaya hospital sejajar dengan jalan (misal, jalan mendatar sepanjang sumbu X)
-                hospital.rotation.y = 0; 
+                hospital.scale.set(11, 11, 11);
+                hospital.rotation.y = 0;
                 
                 hospital.traverse(child => {
                     if (child.isMesh) {
                         child.castShadow = true;
                         child.receiveShadow = true;
+                        // Tambahkan material properties untuk shadow yang lebih baik
+                        if (child.material) {
+                            child.material.shadowSide = THREE.FrontSide;
+                        }
                     }
                 });
                 
                 scene.add(hospital);
+                createCollisionBox(hospital, 0, 40, 0, 0.9, 0.9, 0.9);
             } catch (error) {
                 console.error('Gagal memuat model rumah sakit:', error);
                 createSimpleHospital();
+            }
+        }
+
+        async function loadSkyscraperModel() {
+            try {
+                const loader = new GLTFLoader();
+                const gltf = await loader.loadAsync('/model/Skyscraper.glb');
+                const skyscraper = gltf.scene;
+                skyscraper.position.set(215, 0.1, -213);
+                skyscraper.scale.set(200, 200, 200);
+                skyscraper.rotation.y = Math.PI;
+
+                skyscraper.traverse(child => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        // Tambahkan material properties untuk shadow yang lebih baik
+                        if (child.material) {
+                            child.material.shadowSide = THREE.FrontSide;
+                        }
+                    }
+                });
+
+                scene.add(skyscraper);
+                createCollisionBox(skyscraper, 0, 60, 0, 0.8, 0.8, 0.8);
+            } catch (error) {
+                console.error('Gagal memuat model skyscraper:', error);
+            }
+        }
+
+        async function loadCarModel() {
+            try {
+                const loader = new GLTFLoader();
+                const gltf = await loader.loadAsync('/model/1994_Nissan_180MX.glb');
+                const car = gltf.scene;
+                car.position.set(-1163, 13, -8);
+                car.scale.set(6, 6, 6);
+                car.rotation.y = Math.PI / 2;
+
+                car.traverse(child => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        // Tambahkan material properties untuk shadow yang lebih baik
+                        if (child.material) {
+                            child.material.shadowSide = THREE.FrontSide;
+                        }
+                    }
+                });
+
+                scene.add(car);
+                carModel = car;
+                carCollisionBox = createCollisionBox(car, 0, 10, 0, 1, 1, 1);
+            } catch (error) {
+                console.error('Error loading car model:', error);
             }
         }
 
@@ -145,121 +463,221 @@
             simpleHospital.castShadow = true;
             simpleHospital.receiveShadow = true;
             scene.add(simpleHospital);
-        }
-
-        function createRoad() {
-            // Definisikan dimensi jalan
-            const roadWidth = 20; 
-            const roadLength = 500; // panjang jalan dibuat memanjang
-            const roadGeometry = new THREE.PlaneGeometry(roadLength, roadWidth);
-            const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
-            const road = new THREE.Mesh(roadGeometry, roadMaterial);
-            road.rotation.x = -Math.PI / 2; // putar sehingga datar
-
-            // Set posisi jalan di depan rumah sakit: (x: 228, y: 10, z: 104)
-            road.position.set(228, 10, 104); 
-            road.receiveShadow = true;
-            scene.add(road);
+            
+            // Tambahkan collision untuk fallback hospital
+            collisionObjects.push(simpleHospital);
         }
 
         function create4WayRoad() {
             const roadColor = 0x333333;
             const roadMaterial = new THREE.MeshStandardMaterial({ color: roadColor });
-            const groundSize = 5000; // same size as the ground
+            const groundSize = 2500; // same size as the ground
             const roadWidth = 100; // road width
-
+        
             // Horizontal road (along X axis)
             const horizontalGeometry = new THREE.PlaneGeometry(groundSize, roadWidth);
             const horizontalRoad = new THREE.Mesh(horizontalGeometry, roadMaterial);
             horizontalRoad.rotation.x = -Math.PI / 2;
-            // By default, the center of the plane is at (0, 0, 0) so no additional offset is needed:
             horizontalRoad.position.set(0, 0.11, 0);
-            
-            // Vertical road (along Z axis)
-            const verticalGeometry = new THREE.PlaneGeometry(roadWidth, groundSize);
-            const verticalRoad = new THREE.Mesh(verticalGeometry, roadMaterial);
-            verticalRoad.rotation.x = -Math.PI / 2;
-            verticalRoad.position.set(0, 0.11, 0);
-            
-            // Create a group to hold both roads with its origin at (0, 0, 0)
+        
+            // Hapus/komentari bagian vertical road (arah north-south)
+            // const verticalGeometry = new THREE.PlaneGeometry(roadWidth, groundSize);
+            // const verticalRoad = new THREE.Mesh(verticalGeometry, roadMaterial);
+            // verticalRoad.rotation.x = -Math.PI / 2;
+            // verticalRoad.position.set(0, 0.11, 0);
+        
+            // Create a group to hold the road(s)
             const roadGroup = new THREE.Group();
             roadGroup.add(horizontalRoad);
-            roadGroup.add(verticalRoad);
-            roadGroup.position.set(0, 0, 0); // memastikan titik tengah road ada di 0,0
-
+            // Jangan tambahkan verticalRoad ke group
+            // roadGroup.add(verticalRoad);
+            roadGroup.position.set(0, 0, 0);
+        
             scene.add(roadGroup);
         }
-
-        function createBuildingWithLand(buildingModel, landWidth, landHeight, landColor, position) {
-            // Buat "land" menggunakan plane geometry
-            const landGeometry = new THREE.PlaneGeometry(landWidth, landHeight);
-            const landMaterial = new THREE.MeshStandardMaterial({ color: landColor });
-            const landMesh = new THREE.Mesh(landGeometry, landMaterial);
-            landMesh.rotation.x = -Math.PI / 2;
-            landMesh.receiveShadow = true;
+        function createSimpleStreetlamps() {
+            const spacing = 150;
+            const roadWidth = 100;
+            const roadLength = 1000;
+            const offsetFromRoadCenter = roadWidth / 2 + 5;
             
-            // Buat grup untuk menggabungkan tanah dan bangunan
-            const buildingGroup = new THREE.Group();
+            // Create global array to manage streetlamp lights
+            if (!window.streetLampLights) window.streetLampLights = [];
             
-            // Atur posisi tanah (misal, pusat grup)
-            landMesh.position.set(0, 0, 0);
-            buildingGroup.add(landMesh);
+            // Create simple lamps on north side
+            for (let x = -roadLength; x <= roadLength; x += spacing) {
+                // Create lamp post (cylinder)
+                const postGeometry = new THREE.CylinderGeometry(1, 1, 40, 8);
+                const postMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+                const post = new THREE.Mesh(postGeometry, postMaterial);
+                post.position.set(x, 20, -offsetFromRoadCenter);
+                post.castShadow = true;
+                scene.add(post);
+                
+                // Create lamp head (sphere)
+                const headGeometry = new THREE.SphereGeometry(3, 16, 16);
+                const headMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0xffeeaa,
+                    emissive: 0xffeeaa,
+                    emissiveIntensity: isNight ? 1.0 : 0.0
+                });
+                const head = new THREE.Mesh(headGeometry, headMaterial);
+                head.position.set(x, 48, -offsetFromRoadCenter); // Updated to Y=48 for correct lightbulb position
+                head.userData.isLampBulb = true;
+                scene.add(head);
+                
+                // Only add actual light to every 3rd lamp
+                if (Math.abs(x) % (spacing * 3) === 0) {
+                    const light = new THREE.PointLight(0xffeeaa, 1.5, 150);
+                    light.position.set(x, 48, -offsetFromRoadCenter); // Updated to Y=48
+                    light.visible = isNight;
+                    light.castShadow = false;
+                    scene.add(light);
+                    window.streetLampLights.push(light);
+                }
+                
+                // Add collision
+                createCollisionBox(post, 0, 20, 0, 1, 1, 1);
+            }
             
-            // Atur posisi building pada grup. Jika building model pivot sudah di tengah,
-            // kamu bisa letakkan tepat di atas tanah.
-            buildingModel.position.set(0, 0, 0);
-            buildingGroup.add(buildingModel);
-            
-            // Lokal posisi grup sesuai parameter posisi (misal, tempat bangunan di scene)
-            buildingGroup.position.copy(position);
-            
-            scene.add(buildingGroup);
-            
-            return buildingGroup;
+            // Create simple lamps on south side
+            for (let x = -roadLength; x <= roadLength; x += spacing) {
+                // Create lamp post (cylinder)
+                const postGeometry = new THREE.CylinderGeometry(1, 1, 40, 8);
+                const postMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+                const post = new THREE.Mesh(postGeometry, postMaterial);
+                post.position.set(x, 20, offsetFromRoadCenter);
+                post.castShadow = true;
+                scene.add(post);
+                
+                // Create lamp head (sphere)
+                const headGeometry = new THREE.SphereGeometry(3, 16, 16);
+                const headMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0xffeeaa,
+                    emissive: 0xffeeaa,
+                    emissiveIntensity: isNight ? 1.0 : 0.0
+                });
+                const head = new THREE.Mesh(headGeometry, headMaterial);
+                head.position.set(x, 48, offsetFromRoadCenter); // Updated to Y=48 for correct lightbulb position
+                head.userData.isLampBulb = true;
+                scene.add(head);
+                
+                // Only add actual light to every 3rd lamp
+                if (Math.abs(x) % (spacing * 3) === 0) {
+                    const light = new THREE.PointLight(0xffeeaa, 1.5, 150);
+                    light.position.set(x, 48, offsetFromRoadCenter); // Updated to Y=48
+                    light.visible = isNight;
+                    light.castShadow = false;
+                    scene.add(light);
+                    window.streetLampLights.push(light);
+                }
+                
+                // Add collision
+                createCollisionBox(post, 0, 20, 0, 1, 1, 1);
+            }
         }
 
-        function createStreetlamps() {
-            const streetlampPath = 'streetlight_-_low_poly__stylized.glb';
-            const spacing = 250; // Jarak antar streetlamp
-            const halfSize = 2500; // Karena ground 5000x5000, setengahnya 2500
+        async function createStreetlamps() {
+            const streetlampPath = '/model/spherical_street_lamp.glb';
             const loader = new GLTFLoader();
 
-            loader.load(
-                streetlampPath,
-                gltf => {
-                    const baseLamp = gltf.scene;
-                    // Anda bisa sesuaikan scale atau rotasi jika diperlukan, misalnya:
-                    // baseLamp.scale.set(1, 1, 1);
+            try {
+                const gltf = await loader.loadAsync(streetlampPath);
+                const baseLamp = gltf.scene;
+                baseLamp.scale.set(20, 20, 20);
 
-                    // Tempatkan lampu di sisi atas dan bawah (sumbu X)
-                    for (let x = -halfSize; x <= halfSize; x += spacing) {
-                        let lampTop = baseLamp.clone();
-                        lampTop.position.set(x, 0, halfSize);
-                        scene.add(lampTop);
+                const spacing = 150;
+                const roadWidth = 100;
+                const roadLength = 1000;
+                const offsetFromRoadCenter = roadWidth / 2 + 5;
+                
+                // Create global array to manage streetlamp lights
+                if (!window.streetLampLights) window.streetLampLights = [];
+                
+                // --- Lampu untuk sisi Utara (Z negatif) ---
+                for (let x = -roadLength; x <= roadLength; x += spacing) {
+                    let lampNorth = baseLamp.clone();
+                    lampNorth.position.set(x, 0, -offsetFromRoadCenter);
+                    lampNorth.rotation.y = Math.PI * 0.1/4;
+                    scene.add(lampNorth);
+                    createCollisionBox(lampNorth, 0, 10, 0, 0.2, 1, 0.2);
 
-                        let lampBottom = baseLamp.clone();
-                        lampBottom.position.set(x, 0, -halfSize);
-                        scene.add(lampBottom);
+                    // Add a light bulb glow material to the lamp head
+                    const lampHeadMaterial = new THREE.MeshStandardMaterial({
+                        color: 0xffeeaa,
+                        emissive: 0xffeeaa,
+                        emissiveIntensity: isNight ? 1.0 : 0.0
+                    });
+                    
+                    // Find the lamp head mesh and apply the glowing material
+                    lampNorth.traverse(child => {
+                        if (child.isMesh && (child.name.toLowerCase().includes('bulb') || 
+                            child.name.toLowerCase().includes('glass') || 
+                            child.name.toLowerCase().includes('light'))) {
+                            child.material = lampHeadMaterial;
+                            child.userData.isLampBulb = true;
+                        }
+                    });
+                    
+                    // Only create actual lights for every 3rd lamp to reduce performance impact
+                    if (Math.abs(x) % (spacing * 3) === 0) {
+                        // Use point light with no shadows for better performance
+                        const lampLight = new THREE.PointLight(0xffeeaa, 1.5, 150);
+                        lampLight.position.set(x, 48, -offsetFromRoadCenter); // Updated to Y=48 for correct lightbulb position
+                        lampLight.visible = isNight;
+                        // Disable shadows for better performance
+                        lampLight.castShadow = false;
+                        
+                        scene.add(lampLight);
+                        window.streetLampLights.push(lampLight);
                     }
-
-                    // Tempatkan lampu di sisi kiri dan kanan (sumbu Z)
-                    // Hindari duplikasi di sudut dengan mulai dari -halfSize+spacing hingga halfSize-spacing
-                    for (let z = -halfSize + spacing; z <= halfSize - spacing; z += spacing) {
-                        let lampLeft = baseLamp.clone();
-                        lampLeft.position.set(-halfSize, 0, z);
-                        scene.add(lampLeft);
-
-                        let lampRight = baseLamp.clone();
-                        lampRight.position.set(halfSize, 0, z);
-                        scene.add(lampRight);
-                    }
-                },
-                undefined,
-                error => {
-                    console.error('Error loading streetlamp model:', error);
                 }
-            );
+
+                // --- Lampu untuk sisi Selatan (Z positif) ---
+                for (let x = -roadLength; x <= roadLength; x += spacing) {
+                    let lampSouth = baseLamp.clone();
+                    lampSouth.position.set(x, 0, offsetFromRoadCenter);
+                    lampSouth.rotation.y = -Math.PI * 0.1/4;
+                    scene.add(lampSouth);
+                    createCollisionBox(lampSouth, 0, 10, 0, 0.2, 1, 0.2);
+
+                    // Add a light bulb glow material to the lamp head
+                    const lampHeadMaterial = new THREE.MeshStandardMaterial({
+                        color: 0xffeeaa,
+                        emissive: 0xffeeaa,
+                        emissiveIntensity: isNight ? 1.0 : 0.0
+                    });
+                    
+                    // Find the lamp head mesh and apply the glowing material
+                    lampSouth.traverse(child => {
+                        if (child.isMesh && (child.name.toLowerCase().includes('bulb') || 
+                            child.name.toLowerCase().includes('glass') || 
+                            child.name.toLowerCase().includes('light'))) {
+                            child.material = lampHeadMaterial;
+                            child.userData.isLampBulb = true;
+                        }
+                    });
+                    
+                    // Only create actual lights for every 3rd lamp to reduce performance impact
+                    if (Math.abs(x) % (spacing * 3) === 0) {
+                        // Use point light with no shadows for better performance
+                        const lampLight = new THREE.PointLight(0xffeeaa, 1.5, 150);
+                        lampLight.position.set(x, 48, offsetFromRoadCenter); // Updated to Y=48 for correct lightbulb position
+                        lampLight.visible = isNight;
+                        // Disable shadows for better performance
+                        lampLight.castShadow = false;
+                        
+                        scene.add(lampLight);
+                        window.streetLampLights.push(lampLight);
+                    }
+                }
+
+            } catch (error) {
+                console.error('Error loading streetlamp model:', error);
+                createSimpleStreetlamps();
+            }
         }
+
 
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -281,6 +699,31 @@
                 case 'KeyD':
                     moveRight = true;
                     break;
+                case 'KeyN': // Toggle mode malam/siang
+                    isNight = !isNight;
+                    toggleNightMode();
+                    break;
+                case 'KeyF': // Toggle flashlight
+                    toggleFlashlight();
+                    break;
+                case 'KeyE':
+            if (!isDriving && carModel) {
+                // Hitung jarak hanya pada X dan Z
+                const dx = camera.position.x - carModel.position.x;
+                const dz = camera.position.z - carModel.position.z;
+                const distanceXZ = Math.sqrt(dx*dx + dz*dz);
+                
+                console.log("Jarak ke mobil:", distanceXZ); // Untuk debugging
+                
+                if (distanceXZ < 30) { // Perbesar jarak deteksi
+                    enterCar();
+                } else {
+                    console.log("Terlalu jauh dari mobil");
+                }
+            } else if (isDriving) {
+                exitCar();
+            }
+            break;
             }
         }
 
@@ -301,19 +744,199 @@
             }
         }
 
+        // Fungsi ini dipanggil saat status pointer lock berubah
+        function onPointerLockChange() {
+            if (document.pointerLockElement === document.body ||
+                document.mozPointerLockElement === document.body ||
+                document.webkitPointerLockElement === document.body) {
+                mouseEnabled = true;
+            } else {
+                mouseEnabled = false;
+            }
+        }
+
+        // Fungsi untuk request pointer lock dengan cross-browser support
+        function requestPointerLock() {
+            if (!mouseEnabled) {
+                const element = document.body;
+                
+                element.requestPointerLock = element.requestPointerLock ||
+                                            element.mozRequestPointerLock ||
+                                            element.webkitRequestPointerLock;
+                
+                element.requestPointerLock();
+            }
+        }
+
+        // Update fungsi onMouseMove untuk smooth camera
         function onMouseMove(event) {
-            const movementX = event.movementX || 0;
-            const movementY = event.movementY || 0;
+            if (!mouseEnabled) return;
             
-            const sensitivity = 0.002;
-            // Update yaw (rotation around y)
-            cameraRotation.y -= movementX * sensitivity;
-            // Update pitch (rotation around x) and clamp between -90° and 90°
-            cameraRotation.x -= movementY * sensitivity;
-            cameraRotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, cameraRotation.x));
+            const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+            const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
             
-            camera.rotation.x = cameraRotation.x;
-            camera.rotation.y = cameraRotation.y;
+            // Batasi input maksimum untuk menghindari gerakan ekstrim
+            const maxMovement = 15;
+            const clampedMovementX = Math.max(Math.min(movementX, maxMovement), -maxMovement);
+            const clampedMovementY = Math.max(Math.min(movementY, maxMovement), -maxMovement);
+            
+            // Gunakan acceleration yang lebih rendah untuk mouse movement
+            mouseVelocity.x -= clampedMovementX * mouseAcceleration;
+            mouseVelocity.y -= clampedMovementY * mouseAcceleration;
+        }
+
+        function toggleNightMode() {
+            if (isNight) {
+                // Mode malam: background gelap dan intensitas cahaya sangat rendah
+                scene.background = new THREE.Color(0x000005); // Hampir hitam total
+                ambientLight.intensity = 0.05; // Cahaya ambient sangat minim
+                directionalLight.intensity = 0.1; // Cahaya directional juga minim
+                directionalLight.position.set(-100, 50, -50); // Ubah posisi matahari untuk malam
+                
+                // Tambahkan fog untuk efek horror
+                scene.fog = new THREE.FogExp2(0x000000, 0.0007); // Kurangi densitas fog
+                
+                // Turn on all streetlamp lights
+                if (window.streetLampLights) {
+                    window.streetLampLights.forEach(light => {
+                        light.visible = true;
+                        light.castShadow = true;
+                    });
+                }
+                
+                // Make all lamp bulbs glow
+                scene.traverse(object => {
+                    if (object.isMesh && object.userData.isLampBulb) {
+                        if (object.material) {
+                            object.material.emissiveIntensity = 1.0;
+                        }
+                    }
+                });
+                
+            } else {
+                // Kembali ke mode siang: background dan intensitas normal
+                scene.background = new THREE.Color(0x87CEEB);
+                ambientLight.intensity = 0.5;
+                directionalLight.intensity = 0.8;
+                directionalLight.position.set(100, 100, 50); // Ubah posisi matahari untuk siang
+                scene.fog = null;
+                
+                // Turn off all streetlamp lights
+                if (window.streetLampLights) {
+                    window.streetLampLights.forEach(light => {
+                        light.visible = false;
+                        light.castShadow = false;
+                    });
+                }
+                
+                // Turn off lamp bulb glow
+                scene.traverse(object => {
+                    if (object.isMesh && object.userData.isLampBulb) {
+                        if (object.material) {
+                            object.material.emissiveIntensity = 0.0;
+                        }
+                    }
+                });
+            }
+        }
+
+        
+        // Fungsi untuk efek flicker pada flashlight (opsional)
+        function flickerFlashlight() {
+            if (isFlashlightOn && Math.random() < 0.05) {
+                const originalIntensity = flashlight.intensity;
+                flashlight.intensity = originalIntensity * (0.5 + Math.random() * 0.5);
+                setTimeout(() => {
+                    flashlight.intensity = 100; // Restore ke nilai original dari createFlashlight()
+                }, 50 + Math.random() * 100);
+            }
+        }
+
+        // Fungsi untuk mendeteksi collision
+        function checkCollision(position, radius) {
+            // Cek untuk setiap collision object
+            for (const object of collisionObjects) {
+                // Dapatkan bounding box dari objek
+                const bbox = new THREE.Box3().setFromObject(object);
+                
+                // Sphere-Box collision detection
+                // Dapatkan point terdekat pada bbox ke position
+                const closestPoint = new THREE.Vector3().copy(position);
+                
+                // Clamp closestPoint ke dalam bbox
+                closestPoint.x = Math.max(bbox.min.x, Math.min(bbox.max.x, closestPoint.x));
+                closestPoint.y = Math.max(bbox.min.y, Math.min(bbox.max.y, closestPoint.y));
+                closestPoint.z = Math.max(bbox.min.z, Math.min(bbox.max.z, closestPoint.z));
+                
+                // Hitung jarak antara position dan closestPoint
+                const distance = position.distanceTo(closestPoint);
+                
+                // Jika jarak kurang dari radius, artinya terjadi collision
+                if (distance < radius) {
+                    return {
+                        collision: true,
+                        object: object,
+                        distance: distance,
+                        normal: new THREE.Vector3().subVectors(position, closestPoint).normalize()
+                    };
+                }
+            }
+            
+            // Tidak ada collision
+            return { collision: false };
+        }
+
+        // Misal: cek collision berdasarkan jarak minimal dari setiap vertex ke posisi tertentu (misal, playerPosition)
+        function checkCollisionPerVertex(mesh, playerPosition, collisionDistance) {
+            // Pastikan geometry sudah di-update dan di-bake world matrix dari mesh
+            mesh.updateMatrixWorld();
+            const geometry = mesh.geometry;
+            // Dapatkan array posisi vertex
+            const positions = geometry.attributes.position.array;
+            
+            // Buat vector temporary untuk transformasi
+            const vertexWorld = new THREE.Vector3();
+            for (let i = 0; i < positions.length; i += 3) {
+                vertexWorld.set(positions[i], positions[i+1], positions[i+2]);
+                // Transform ke koordinat dunia
+                vertexWorld.applyMatrix4(mesh.matrixWorld);
+                
+                // Lakukan pengecekan jarak antara vertex dengan playerPosition
+                if (vertexWorld.distanceTo(playerPosition) < collisionDistance) {
+                    return true; // Collision terdeteksi
+                }
+            }
+            return false;
+        }
+
+        // Fungsi untuk memindahkan karakter dengan collision
+        function moveWithCollision(moveVector) {
+            // Posisi saat ini
+            const currentPosition = camera.position.clone();
+            
+            // Posisi rencana setelah bergerak
+            const plannedPosition = currentPosition.clone().add(moveVector);
+            
+            // Cek collision
+            const result = checkCollision(plannedPosition, playerRadius);
+            
+            if (result.collision) {
+                // Jika terjadi collision, geser posisi keluar dari collision
+                const pushDistance = playerRadius - result.distance + 0.1; // Sedikit ekstra untuk safety
+                const pushVector = result.normal.multiplyScalar(pushDistance);
+                
+                // Tambahkan pushVector ke planned position
+                plannedPosition.add(pushVector);
+                
+                // Update moveVector berdasarkan new planned position
+                moveVector.subVectors(plannedPosition, currentPosition);
+                
+                // Reset Y value agar player tidak terbang/terbenam
+                moveVector.y = 0;
+            }
+            
+            // Terapkan move vector ke posisi kamera
+            camera.position.add(moveVector);
         }
 
         function animate() {
@@ -322,48 +945,243 @@
             const time = performance.now();
             const delta = (time - prevTime) / 1000;
 
-            // Determine movement direction with corrected W/S behavior:
-            // W: forward, S: backward
-            let moveDirection = new THREE.Vector3();
-            if (moveForward) moveDirection.z += 1; // Forward
-            if (moveBackward) moveDirection.z -= 1; // Backward
-            if (moveLeft) moveDirection.x -= 1;
-            if (moveRight) moveDirection.x += 1;
-            moveDirection.normalize();
+            if (isDriving && carModel) {
+                // Ambil arah depan dan kanan dari kamera (hanya XZ)
+                const forward = new THREE.Vector3();
+                camera.getWorldDirection(forward);
+                forward.y = 0;
+                forward.normalize();
+                const right = new THREE.Vector3();
+                right.crossVectors(forward, camera.up).normalize();
 
-            // Get camera's forward vector (ignoring y component)
-            const forward = new THREE.Vector3();
-            camera.getWorldDirection(forward);
-            forward.y = 0;
-            forward.normalize();
+                // WASD untuk arah relatif kamera
+                let driveDirection = new THREE.Vector3();
+                if (moveForward) driveDirection.add(forward);
+                if (moveBackward) driveDirection.sub(forward);
+                if (moveLeft) driveDirection.sub(right);
+                if (moveRight) driveDirection.add(right);
+                driveDirection.normalize();
 
-            // Compute camera's right vector
-            const right = new THREE.Vector3();
-            right.crossVectors(forward, camera.up).normalize();
+                // Update posisi mobil
+                carModel.position.addScaledVector(driveDirection, 50 * delta);
 
-            // Calculate movement vector
-            const move = new THREE.Vector3();
-            move.addScaledVector(forward, moveDirection.z * speed * delta);
-            move.addScaledVector(right, moveDirection.x * speed * delta);
+                // Update posisi collision box mobil agar tetap di tengah mobil
+                if (carCollisionBox) {
+                    carCollisionBox.position.copy(carModel.position);
+                }
 
-            // Update camera position
-            camera.position.add(move);
+                updateCarCamera();
+            } else {
+                // Mode berjalan: update rotasi dan posisi kamera berdasarkan input mouse dan collision (kode existing Anda)
+                if (mouseEnabled) {
+                    mouseVelocity.x *= mouseDamping;
+                    mouseVelocity.y *= mouseDamping;
+                    if (Math.abs(mouseVelocity.x) < 0.001) mouseVelocity.x = 0;
+                    if (Math.abs(mouseVelocity.y) < 0.001) mouseVelocity.y = 0;
+                    cameraRotation.y += mouseVelocity.x * delta * 1.5;
+                    cameraRotation.x += mouseVelocity.y * delta * 1.5;
+                    cameraRotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, cameraRotation.x));
+                    camera.rotation.x = cameraRotation.x;
+                    camera.rotation.y = cameraRotation.y;
+                }
+                
+                // Update pergerakan player dan collision
+                let moveDirection = new THREE.Vector3();
+                if (moveForward) moveDirection.z += 1;
+                if (moveBackward) moveDirection.z -= 1;
+                if (moveLeft) moveDirection.x -= 1;
+                if (moveRight) moveDirection.x += 1;
+                moveDirection.normalize();
+
+                const forward = new THREE.Vector3();
+                camera.getWorldDirection(forward);
+                forward.y = 0;
+                forward.normalize();
+                const right = new THREE.Vector3();
+                right.crossVectors(forward, camera.up).normalize();
+                const move = new THREE.Vector3();
+                move.addScaledVector(forward, moveDirection.z * speed * delta);
+                move.addScaledVector(right, moveDirection.x * speed * delta);
+                
+                moveWithCollision(move);
+            }
+            
+            // Update flashlight, kompas, dll.
+            if (isFlashlightOn) {
+                const forwardDirection = new THREE.Vector3();
+                camera.getWorldDirection(forwardDirection);
+                
+                if (isDriving && carModel) {
+                    // Saat driving mode, tempatkan flashlight di depan mobil
+                    const offsetY = 5; // Ketinggian lampu dari tanah
+                    const offsetZ = 20; // Jarak lampu dari depan mobil
+                    
+                    // Gunakan posisi mobil sebagai referensi
+                    flashlight.position.copy(carModel.position);
+                    flashlight.position.y += offsetY;
+                    flashlight.position.x += 20; // Sesuaikan dengan arah mobil (ke arah X positif)
+                    
+                    // Arahkan flashlight ke depan mobil
+                    const targetDistance = 30;
+                    flashlight.target.position.copy(flashlight.position);
+                    flashlight.target.position.x += targetDistance;
+                    flashlight.target.updateMatrixWorld();
+                } else {
+                    // Mode berjalan normal (kode yang sudah ada)
+                    const offsetY = -1;
+                    flashlight.position.copy(camera.position);
+                    flashlight.position.y += offsetY;
+                    const targetDistance = 10;
+                    flashlight.target.position.copy(camera.position).add(forwardDirection.multiplyScalar(targetDistance));
+                    flashlight.target.position.y += offsetY;
+                    flashlight.target.updateMatrixWorld();
+                }
+            }
+            
+            // Update flashlight untuk lampu mobil
+            if (isFlashlightOn) {
+                if (isDriving && carModel) {
+                    // Nonaktifkan flashlight utama saat driving
+                    
+                    // Posisikan kedua headlight
+                    const offsetY = 5; // Ketinggian lampu
+                    const offsetX = 5; // Jarak horizontal antar lampu
+                    const forwardOffset = 20; // Jarak ke depan dari mobil
+                    
+                    // Posisi dan aktifkan lampu kiri
+                    leftHeadlight.position.copy(carModel.position);
+                    leftHeadlight.position.y += offsetY;
+                    leftHeadlight.position.x += forwardOffset;
+                    leftHeadlight.position.z -= offsetX;
+                    leftHeadlight.visible = true;
+                    
+                    // Posisi dan aktifkan lampu kanan
+                    rightHeadlight.position.copy(carModel.position);
+                    rightHeadlight.position.y += offsetY;
+                    rightHeadlight.position.x += forwardOffset;
+                    rightHeadlight.position.z += offsetX;
+                    rightHeadlight.visible = true;
+                    
+                    // Arahkan kedua lampu ke depan
+                    const targetDistance = 30;
+                    leftHeadlight.target.position.copy(leftHeadlight.position);
+                    rightHeadlight.target.position.copy(rightHeadlight.position);
+                    leftHeadlight.target.position.x += targetDistance;
+                    rightHeadlight.target.position.x += targetDistance;
+                    
+                    leftHeadlight.target.updateMatrixWorld();
+                    rightHeadlight.target.updateMatrixWorld();
+                } else {
+                    // Mode berjalan normal
+                    flashlight.visible = true;
+                    const offsetY = -1;
+                    flashlight.position.copy(camera.position);
+                    flashlight.position.y += offsetY;
+                    const targetDistance = 10;
+                    const forwardDirection = new THREE.Vector3();
+                    camera.getWorldDirection(forwardDirection);
+                    flashlight.target.position.copy(camera.position).add(forwardDirection.multiplyScalar(targetDistance));
+                    flashlight.target.position.y += offsetY;
+                    flashlight.target.updateMatrixWorld();
+                    
+                    // Nonaktifkan headlight mobil
+                    leftHeadlight.visible = false;
+                    rightHeadlight.visible = false;
+                }
+            } else {
+                // Nonaktifkan semua lampu
+                flashlight.visible = false;
+                leftHeadlight.visible = false;
+                rightHeadlight.visible = false;
+            }
+            
+            // Putar bulan perlahan
+            if (moon) {
+                moon.rotation.y += 0.001;
+            }
+            
+            updateCompass();
+            
             prevTime = time;
-
             renderer.render(scene, camera);
-
-            // Update info display with camera's position
+            
             const infoEl = document.getElementById('info');
-            infoEl.innerHTML = `WASD untuk bergerak, Mouse untuk melihat sekitar<br>
-                Kamera Posisi: X: ${camera.position.x.toFixed(2)}, Y: ${camera.position.y.toFixed(2)}, Z: ${camera.position.z.toFixed(2)}`;
+            infoEl.innerHTML = `WASD untuk bergerak, Mouse untuk melihat sekitar, F untuk flashlight, N untuk toggle malam/siang, E untuk masuk/keluar mobil<br>
+            Kamera Posisi: X: ${camera.position.x.toFixed(2)}, Y: ${camera.position.y.toFixed(2)}, Z: ${camera.position.z.toFixed(2)}`;
         }
 
-        // Request pointer lock on click:
-        document.body.addEventListener('click', () => {
-            document.body.requestPointerLock();
-        });
-
         init();
+
+        function updateCompass() {
+            // Dapatkan rotasi kamera (hanya yaw, pitch tidak dipakai)
+            let yawDeg = THREE.MathUtils.radToDeg(camera.rotation.y);
+            // Normalisasi ke [0, 360)
+            yawDeg = (yawDeg % 360 + 360) % 360;
+            
+            let cardinal = '';
+            if (yawDeg >= 337.5 || yawDeg < 22.5) {
+                cardinal = 'N';
+            } else if (yawDeg >= 22.5 && yawDeg < 67.5) {
+                cardinal = 'NE';
+            } else if (yawDeg >= 67.5 && yawDeg < 112.5) {
+                cardinal = 'E';
+            } else if (yawDeg >= 112.5 && yawDeg < 157.5) {
+                cardinal = 'SE';
+            } else if (yawDeg >= 157.5 && yawDeg < 202.5) {
+                cardinal = 'S';
+            } else if (yawDeg >= 202.5 && yawDeg < 247.5) {
+                cardinal = 'SW';
+            } else if (yawDeg >= 247.5 && yawDeg < 292.5) {
+                cardinal = 'W';
+            } else if (yawDeg >= 292.5 && yawDeg < 337.5) {
+                cardinal = 'NW';
+            }
+            
+            // Update tampilan kompas
+            document.getElementById('compass').innerText = 'Direction: ' + cardinal;
+        }
+
+        function enterCar() {
+            isDriving = true;
+            // Simpan posisi kamera player sebelum masuk mobil
+            lastPlayerPosition = camera.position.clone();
+            updateCarCamera();
+            console.log("Masuk mode mengemudi");
+        }
+
+        function exitCar() {
+            isDriving = false;
+            
+            // Simpan referensi ke rotasi mobil
+            const carDirection = new THREE.Vector3(0, 0, -1).applyQuaternion(carModel.quaternion);
+            
+            // Tempatkan pemain di belakang mobil (relatif terhadap orientasi mobil)
+            const offset = carDirection.clone().multiplyScalar(-20); // 20 unit di belakang mobil
+            
+            // Tempatkan player di belakang mobil, sedikit lebih tinggi
+            const newPosition = carModel.position.clone().add(offset).add(new THREE.Vector3(0, 10, 0));
+            camera.position.copy(newPosition);
+            
+            // Hadapkan pemain ke arah mobil
+            camera.lookAt(carModel.position);
+            
+            // Perbarui rotasi kamera agar sesuai dengan lookAt
+            cameraRotation.y = camera.rotation.y;
+            cameraRotation.x = camera.rotation.x;
+            
+            // Perbarui lastPlayerPosition
+            lastPlayerPosition = newPosition.clone();
+            
+            console.log("Keluar mode mengemudi");
+        }
+
+        function updateCarCamera() {
+            // Kamera di atas mobil, naikkan sedikit lebih tinggi (dari 20 menjadi 25)
+            camera.position.copy(carModel.position).add(new THREE.Vector3(0, 15, 0));
+            // Arahkan kamera ke depan mobil (WEST = -X dunia)
+            const target = carModel.position.clone().add(new THREE.Vector3(20, 10, 0));
+            camera.lookAt(target);
+        }
     </script>
 </body>
 </html>

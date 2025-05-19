@@ -2,4 +2,6 @@ node_modules/
 package-lock.json
 dist/
 coverage/
-package.json
+package.json/
+claude copy.html
+README.md
