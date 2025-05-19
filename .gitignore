@@ -3,5 +3,5 @@ package-lock.json
 dist/
 coverage/
 package.json/
-claude copy.html
-README.md
+claude copy.html/
+models/

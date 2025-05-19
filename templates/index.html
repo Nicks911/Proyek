@@ -172,18 +172,25 @@
                 '/model/moon_idle.glb',
                 function (gltf) {
                     moon = gltf.scene;
-                    moon.scale.set(50, 50, 50); // Kurangi skala agar proporsional dengan jarak yang lebih dekat
-                    moon.position.set(-500, 1200, -300); // Posisi lebih dekat ke player
+                    moon.scale.set(5, 5, 5);
+                    moon.position.set(-500, 700, 300);
                     
-                    // Tambahkan material emissive yang lebih terang
+                    // Tambahkan point light untuk bulan
+                    const moonLight = new THREE.PointLight(0xc2c5cc, 0.5, 1000);
+                    moonLight.position.copy(moon.position);
+                    moon.userData.moonLight = moonLight; // Simpan referensi ke moonLight
+                    scene.add(moonLight);
+                    
                     moon.traverse((child) => {
                         if (child.isMesh) {
                             child.material = new THREE.MeshPhongMaterial({
                                 map: child.material.map,
-                                emissive: 0x000000,
-                                emissiveIntensity: 0.8, // Tingkatkan intensitas agar lebih terlihat
+                                emissive: 0xffffcc,
+                                emissiveIntensity: 0.0, // Akan diubah saat mode malam
                                 side: THREE.DoubleSide
                             });
+                            child.castShadow = true;
+                            child.receiveShadow = true;
                         }
                     });
                     
@@ -813,6 +820,34 @@
                     }
                 });
                 
+                // Perbarui pencahayaan bulan
+                if (moon) {
+                    moon.traverse((child) => {
+                        if (child.isMesh) {
+                            child.material.emissiveIntensity = 1.0;
+                        }
+                    });
+                    // Aktifkan moonLight
+                    if (moon.userData.moonLight) {
+                        moon.userData.moonLight.intensity = 0.8;
+                    }
+                }
+                
+                // Perbarui shadow settings untuk malam hari
+                renderer.shadowMap.darkness = 0.8;
+                directionalLight.shadow.bias = -0.0005;
+                directionalLight.shadow.normalBias = 0.02;
+                
+                // Perbarui flashlight shadow settings
+                [flashlight, leftHeadlight, rightHeadlight].forEach(light => {
+                    if (light) {
+                        light.shadow.bias = -0.0005;
+                        light.shadow.normalBias = 0.02;
+                        light.shadow.radius = 4; // Membuat shadow lebih lembut
+                        light.penumbra = 0.5; // Membuat tepi cahaya lebih lembut
+                    }
+                });
+                
             } else {
                 // Kembali ke mode siang: background dan intensitas normal
                 scene.background = new THREE.Color(0x87CEEB);
@@ -835,6 +870,33 @@
                         if (object.material) {
                             object.material.emissiveIntensity = 0.0;
                         }
+                    }
+                });
+                
+                // Matikan pencahayaan bulan
+                if (moon) {
+                    moon.traverse((child) => {
+                        if (child.isMesh) {
+                            child.material.emissiveIntensity = 0.0;
+                        }
+                    });
+                    // Nonaktifkan moonLight
+                    if (moon.userData.moonLight) {
+                        moon.userData.moonLight.intensity = 0;
+                    }
+                }
+                
+                // Reset shadow settings untuk siang hari
+                renderer.shadowMap.darkness = 0.3;
+                directionalLight.shadow.bias = -0.0001;
+                directionalLight.shadow.normalBias = 0.01;
+                
+                [flashlight, leftHeadlight, rightHeadlight].forEach(light => {
+                    if (light) {
+                        light.shadow.bias = -0.0001;
+                        light.shadow.normalBias = 0.01;
+                        light.shadow.radius = 2;
+                        light.penumbra = 0.2;
                     }
                 });
             }
@@ -1043,10 +1105,11 @@
                 if (isDriving && carModel) {
                     // Nonaktifkan flashlight utama saat driving
                     
+                    flashlight.visible = false;
                     // Posisikan kedua headlight
                     const offsetY = 5; // Ketinggian lampu
                     const offsetX = 5; // Jarak horizontal antar lampu
-                    const forwardOffset = 20; // Jarak ke depan dari mobil
+                    const forwardOffset = 25.8; // Jarak ke depan dari mobil
                     
                     // Posisi dan aktifkan lampu kiri
                     leftHeadlight.position.copy(carModel.position);
@@ -1073,7 +1136,6 @@
                     rightHeadlight.target.updateMatrixWorld();
                 } else {
                     // Mode berjalan normal
-                    flashlight.visible = true;
                     const offsetY = -1;
                     flashlight.position.copy(camera.position);
                     flashlight.position.y += offsetY;
@@ -1090,7 +1152,6 @@
                 }
             } else {
                 // Nonaktifkan semua lampu
-                flashlight.visible = false;
                 leftHeadlight.visible = false;
                 rightHeadlight.visible = false;
             }
@@ -1141,10 +1202,24 @@
             document.getElementById('compass').innerText = 'Direction: ' + cardinal;
         }
 
+        // Tambahkan variabel global untuk tracking first time entering car
+        let firstTimeEnteringCar = true;
+
+        // Update fungsi enterCar()
         function enterCar() {
             isDriving = true;
             // Simpan posisi kamera player sebelum masuk mobil
             lastPlayerPosition = camera.position.clone();
+            
+            // Check if this is first time entering car
+            if (firstTimeEnteringCar) {
+                firstTimeEnteringCar = false; // Set flag to false
+                if (!isNight) { // Only toggle if not already night
+                    isNight = true;
+                    toggleNightMode();
+                }
+            }
+            
             updateCarCamera();
             console.log("Masuk mode mengemudi");
         }
