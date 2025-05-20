@@ -238,6 +238,7 @@
             loadCathedralModel();
             loadSmallBuildingModel();
             loadBakeryModel();
+            loadHungryJacksModel();
         }
 
         function createFlashlight() {
@@ -1364,9 +1365,9 @@
                 const gltf = await loader.loadAsync('/model/Bakery.glb');
                 const familymart = gltf.scene;
                 // Tempatkan Familymart pada X: -828, Z: -174
-                familymart.position.set(-828, 0.1, -105);
-                familymart.scale.set(10, 10, 10); // Sesuaikan skala jika perlu
-                familymart.rotation.y = 0; // Rotasi jika perlu
+                familymart.position.set(-557, 0.1, 113);
+                familymart.scale.set(9, 9, 9); // Sesuaikan skala jika perlu
+                familymart.rotation.y = Math.PI; // Rotasi jika perlu
 
                 familymart.traverse(child => {
                     if (child.isMesh) {
@@ -1384,6 +1385,35 @@
                 createCollisionBox(familymart, 0, 10, 0, 1, 1, 1); // Perbesar collision jika perlu
             } catch (error) {
                 console.error('Gagal memuat model Familymart:', error);
+            }
+        }
+
+        async function loadHungryJacksModel() {
+            try {
+                const loader = new GLTFLoader();
+                const gltf = await loader.loadAsync('/model/hungryjacks.glb');
+                const supermarket = gltf.scene;
+                // Tempatkan supermarket pada X: -427, Z: 171
+                supermarket.position.set(-680, 1, -245);
+                supermarket.scale.set(8.5, 8.5, 8.5); // Sesuaikan skala jika perlu
+                supermarket.rotation.y = 0; // Rotasi jika perlu
+
+                supermarket.traverse(child => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        if (child.material) {
+                            child.material.shadowSide = THREE.FrontSide;
+                        }
+                    }
+                });
+
+                scene.add(supermarket);
+
+                // Tambahkan collision box untuk supermarket
+                createCollisionBox(supermarket, 0, 10, 0, 1, 1, 1);
+            } catch (error) {
+                console.error('Gagal memuat model supermarket:', error);
             }
         }
     </script>
