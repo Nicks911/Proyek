@@ -85,6 +85,9 @@
         // Tambahkan variabel global untuk bulan
         let moon;
 
+        // Tambahkan variabel global untuk kecepatan mobil
+        let carSpeed = 80; // default
+
         // Inisialisasi scene
         function init() {
             // Membuat scene
@@ -94,7 +97,7 @@
             // Membuat kamera
             camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 1, 1500); // Ubah dari 5000 ke 10000
             // Spawn player di X: -1163, Y: 10, Z: -8
-            camera.position.set(-1170, 23, 37);
+            camera.position.set(-1141, 23, 191);
             camera.rotation.order = 'YXZ';
             
             // Inisialisasi cahaya dengan variabel global
@@ -155,10 +158,13 @@
             loadHospitalModel();
             
             // Tambahkan streetlamp sepanjang ujung map
-            createStreetlamps();
+            //createStreetlamps();
             
             // Load model skyscraper
             loadSkyscraperModel();
+
+            // Load model house
+            loadHouseModel();
 
             // Tambahkan batas map untuk collision
             createMapBoundaries();
@@ -229,6 +235,9 @@
             document.body.addEventListener('click', requestPointerLock);
             
             animate();
+            loadCathedralModel();
+            loadSmallBuildingModel();
+            loadBakeryModel();
         }
 
         function createFlashlight() {
@@ -256,7 +265,7 @@
             isFlashlightOn = !isFlashlightOn;
             flashlight.visible = isFlashlightOn;
             // Opsional: tambahkan efek suara klik
-            playClickSound();
+            //playClickSound();
         }
         
         function playClickSound() {
@@ -283,7 +292,7 @@
         }
 
         function createGround() {
-            const groundGeometry = new THREE.PlaneGeometry(2500, 1000);
+            const groundGeometry = new THREE.PlaneGeometry(2500, 800);
             const groundMaterial = new THREE.MeshStandardMaterial({
                 color: 0x2E8B57,
                 side: THREE.DoubleSide
@@ -294,8 +303,9 @@
             ground.receiveShadow = true;
             scene.add(ground);
             
-            const gridHelper = new THREE.GridHelper(1000, 50);
-            scene.add(gridHelper);
+            // Hapus atau komentari baris berikut untuk menghilangkan garis putih:
+            // const gridHelper = new THREE.GridHelper(1000, 50);
+            // scene.add(gridHelper);
         }
 
         // Fungsi untuk membuat bounding box pada objek 3D
@@ -338,7 +348,7 @@
         function createMapBoundaries() {
             // Karena ground 2500 x 1000, setengahnya:
             const mapWidth = 1250;  // setengah lebar ground (X)
-            const mapHeight = 500;  // setengah panjang ground (Z)
+            const mapHeight = 400;  // setengah panjang ground (Z)
             const wallHeight = 100;
             const wallThickness = 10;
 
@@ -399,7 +409,7 @@
                 });
                 
                 scene.add(hospital);
-                createCollisionBox(hospital, 0, 40, 0, 0.9, 0.9, 0.9);
+                createCollisionBox(hospital, 0, 10, 0, 1, 1, 0.8);
             } catch (error) {
                 console.error('Gagal memuat model rumah sakit:', error);
                 createSimpleHospital();
@@ -427,9 +437,35 @@
                 });
 
                 scene.add(skyscraper);
-                createCollisionBox(skyscraper, 0, 60, 0, 0.8, 0.8, 0.8);
+                createCollisionBox(skyscraper, 0, 10, 0, 1, 1, 1);
             } catch (error) {
                 console.error('Gagal memuat model skyscraper:', error);
+            }
+        }
+
+        async function loadHouseModel() {
+            try {
+                const loader = new GLTFLoader();
+                const gltf = await loader.loadAsync('/model/House with driveway.glb');
+                const house = gltf.scene;
+                // Tempatkan house pada X: -1123, Z: 209
+                house.position.set(-1139, 0.1, 220);
+                house.scale.set(10, 10, 10); // Sesuaikan skala jika perlu
+                house.rotation.y = Math.PI; // Rotasi jika perlu
+
+                house.traverse(child => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+
+                scene.add(house);
+
+                // Tambahkan collision box untuk house jika perlu
+                createCollisionBox(house, 0, 20, 0, 1, 1, 0.14);
+            } catch (error) {
+                console.error('Gagal memuat model house:', error);
             }
         }
 
@@ -1025,7 +1061,7 @@
                 driveDirection.normalize();
 
                 // Update posisi mobil
-                carModel.position.addScaledVector(driveDirection, 50 * delta);
+                carModel.position.addScaledVector(driveDirection, carSpeed * delta);
 
                 // Update posisi collision box mobil agar tetap di tengah mobil
                 if (carCollisionBox) {
@@ -1210,7 +1246,10 @@
             isDriving = true;
             // Simpan posisi kamera player sebelum masuk mobil
             lastPlayerPosition = camera.position.clone();
-            
+
+            // Set kecepatan mobil lebih tinggi saat driving mode
+            carSpeed = 80; // misal 250, bisa diubah sesuai keinginan
+
             // Check if this is first time entering car
             if (firstTimeEnteringCar) {
                 firstTimeEnteringCar = false; // Set flag to false
@@ -1219,14 +1258,17 @@
                     toggleNightMode();
                 }
             }
-            
+
             updateCarCamera();
             console.log("Masuk mode mengemudi");
         }
 
         function exitCar() {
             isDriving = false;
-            
+
+            // Kembalikan kecepatan ke default saat keluar mobil
+            carSpeed = 80;
+
             // Simpan referensi ke rotasi mobil
             const carDirection = new THREE.Vector3(0, 0, -1).applyQuaternion(carModel.quaternion);
             
@@ -1256,6 +1298,93 @@
             // Arahkan kamera ke depan mobil (WEST = -X dunia)
             const target = carModel.position.clone().add(new THREE.Vector3(20, 10, 0));
             camera.lookAt(target);
+        }
+
+        async function loadCathedralModel() {
+            try {
+                const loader = new GLTFLoader();
+                const gltf = await loader.loadAsync('/model/Cathedral.glb');
+                const cathedral = gltf.scene;
+                // Tempatkan cathedral pada X: -1137, Z: -155
+                cathedral.position.set(-1110, 0.1, -155);
+                cathedral.scale.set(20, 20, 20); // Sesuaikan skala jika perlu
+                cathedral.rotation.y = Math.PI; // Rotasi jika perlu
+
+                cathedral.traverse(child => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        if (child.material) {
+                            child.material.shadowSide = THREE.FrontSide;
+                        }
+                    }
+                });
+
+                scene.add(cathedral);
+
+                // Tambahkan collision box untuk cathedral
+                createCollisionBox(cathedral, 0, 10, 0, 1, 1, 1); // Perbesar collision jika perlu
+            } catch (error) {
+                console.error('Gagal memuat model cathedral:', error);
+            }
+        }
+
+        async function loadSmallBuildingModel() {
+            try {
+                const loader = new GLTFLoader();
+                const gltf = await loader.loadAsync('/model/Small Building.glb');
+                const smallBuilding = gltf.scene;
+                // Tempatkan small building pada X: -911, Z: 215
+                smallBuilding.position.set(-850, 0.1, 140);
+                smallBuilding.scale.set(150, 150, 150); // Sesuaikan skala jika perlu
+                smallBuilding.rotation.y = 0; // Rotasi jika perlu
+
+                smallBuilding.traverse(child => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        if (child.material) {
+                            child.material.shadowSide = THREE.FrontSide;
+                        }
+                    }
+                });
+
+                scene.add(smallBuilding);
+
+                // Tambahkan collision box untuk small building
+                createCollisionBox(smallBuilding, 0, 10, 0, 1, 1, 1); // Perbesar collision jika perlu
+            } catch (error) {
+                console.error('Gagal memuat model small building:', error);
+            }
+        }
+
+        async function loadBakeryModel() {
+            try {
+                const loader = new GLTFLoader();
+                const gltf = await loader.loadAsync('/model/Bakery.glb');
+                const familymart = gltf.scene;
+                // Tempatkan Familymart pada X: -828, Z: -174
+                familymart.position.set(-828, 0.1, -105);
+                familymart.scale.set(10, 10, 10); // Sesuaikan skala jika perlu
+                familymart.rotation.y = 0; // Rotasi jika perlu
+
+                familymart.traverse(child => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        if (child.material) {
+                            child.material.shadowSide = THREE.FrontSide;
+                        }
+                    }
+                });
+
+                scene.add(familymart);
+
+                // Tambahkan collision box untuk Familymart
+                createCollisionBox(familymart, 0, 10, 0, 1, 1, 1); // Perbesar collision jika perlu
+            } catch (error) {
+                console.error('Gagal memuat model Familymart:', error);
+            }
         }
     </script>
 </body>
