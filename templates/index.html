@@ -1038,6 +1038,40 @@
             camera.position.add(moveVector);
         }
 
+        // Fungsi untuk mengecek collision mobil dengan objek lain
+function checkCarCollisions(newPosition) {
+    // Buat temporary box untuk simulasi posisi baru mobil
+    const tempBox = new THREE.Box3();
+    if (carCollisionBox) {
+        tempBox.copy(new THREE.Box3().setFromObject(carCollisionBox));
+        
+        // Hitung offset dari posisi saat ini ke posisi baru
+        const offsetX = newPosition.x - carModel.position.x;
+        const offsetY = newPosition.y - carModel.position.y;
+        const offsetZ = newPosition.z - carModel.position.z;
+        
+        // Pindahkan box ke posisi baru yang direncanakan
+        tempBox.min.x += offsetX;
+        tempBox.min.y += offsetY;
+        tempBox.min.z += offsetZ;
+        tempBox.max.x += offsetX;
+        tempBox.max.y += offsetY;
+        tempBox.max.z += offsetZ;
+        
+        // Cek collision dengan semua objek
+        for (const object of collisionObjects) {
+            // Skip collision check dengan collision box mobil sendiri
+            if (object === carCollisionBox) continue;
+            
+            const objectBox = new THREE.Box3().setFromObject(object);
+            if (tempBox.intersectsBox(objectBox)) {
+                return true; // Collision terdeteksi
+            }
+        }
+    }
+    return false; // Tidak ada collision
+}
+
         function animate() {
             requestAnimationFrame(animate);
             
@@ -1061,12 +1095,21 @@
                 if (moveRight) driveDirection.add(right);
                 driveDirection.normalize();
 
-                // Update posisi mobil
-                carModel.position.addScaledVector(driveDirection, carSpeed * delta);
+                // Hitung posisi yang direncanakan
+                const plannedPosition = carModel.position.clone().addScaledVector(driveDirection, carSpeed * delta);
 
-                // Update posisi collision box mobil agar tetap di tengah mobil
-                if (carCollisionBox) {
-                    carCollisionBox.position.copy(carModel.position);
+                // Cek collision sebelum memindahkan mobil
+                if (!checkCarCollisions(plannedPosition)) {
+                    // Tidak ada collision, update posisi mobil
+                    carModel.position.copy(plannedPosition);
+                    
+                    // Update posisi collision box mobil
+                    if (carCollisionBox) {
+                        carCollisionBox.position.copy(carModel.position);
+                    }
+                } else {
+                    // Ada collision, mobil tidak bergerak
+                    console.log("Car collision detected!");
                 }
 
                 updateCarCamera();
