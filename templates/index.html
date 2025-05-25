@@ -46,7 +46,7 @@
         let moveRight = false;
         let velocity = new THREE.Vector3();
         let prevTime = performance.now();
-        const speed = 200.0;
+        const speed = 300.0;
 
         // Deklarasikan variabel global untuk lampu dan status mode
         let ambientLight, directionalLight;
@@ -242,6 +242,8 @@
             loadPoliceStationModel(); 
             loadWarehouseModel();
             loadStopSign();
+            // Panggil fungsi loadTownHouseModel() di akhir init()
+            loadTownHouseModel();
         }
 
         function createFlashlight() {
@@ -1469,8 +1471,8 @@ function checkCarCollisions(newPosition) {
                 const gltf = await loader.loadAsync('/model/police_station.glb');
                 const policeStation = gltf.scene;
                 // Posisikan police station di lokasi yang sesuai
-                policeStation.position.set(611, 0.1, 206); // Sesuaikan koordinat sesuai kebutuhan
-                policeStation.scale.set(3.2,3.2,3.2); // Sesuaikan skala sesuai kebutuhan
+                policeStation.position.set(300, 0.1, 210); // Sesuaikan koordinat sesuai kebutuhan
+                policeStation.scale.set(3.1,3.1,3.1); // Sesuaikan skala sesuai kebutuhan
                 policeStation.rotation.y = Math.PI; // Sesuaikan rotasi sesuai kebutuhan
 
                 policeStation.traverse(child => {
@@ -1551,6 +1553,36 @@ function checkCarCollisions(newPosition) {
                 console.error('Gagal memuat model stopsign:', error);
             }
         }
+
+        // Tambahkan fungsi berikut di bawah loadStopSign()
+async function loadTownHouseModel() {
+    try {
+        const loader = new GLTFLoader();
+        const gltf = await loader.loadAsync('/model/Town House.glb');
+        const townHouse = gltf.scene;
+        // Tempatkan Town House pada X: 473, Z: -223
+        townHouse.position.set(550, 0.1, -135);
+        townHouse.scale.set(45, 45, 55); // Sesuaikan skala jika perlu
+        townHouse.rotation.y = 0; // Rotasi jika perlu
+
+        townHouse.traverse(child => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                if (child.material) {
+                    child.material.shadowSide = THREE.FrontSide;
+                }
+            }
+        });
+
+        scene.add(townHouse);
+
+        // Tambahkan collision box untuk Town House
+        createCollisionBox(townHouse, 0, 10, 0, 1, 1, 1);
+    } catch (error) {
+        console.error('Gagal memuat model Town House:', error);
+    }
+}
     </script>
 </body>
 </html>
