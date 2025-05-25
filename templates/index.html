@@ -88,6 +88,10 @@
         // Tambahkan variabel global untuk kecepatan mobil
         let carSpeed = 80; // default
 
+        // Add these global variables at the top with other global declarations
+let chaosEmerald = null;
+let isEmeraldCollected = false;
+
         // Inisialisasi scene
         function init() {
             // Membuat scene
@@ -244,6 +248,14 @@
             loadStopSign();
             // Panggil fungsi loadTownHouseModel() di akhir init()
             loadTownHouseModel();
+            loadBillboardModel();
+            loadTungTung();
+            loadFarmHouseModel();
+            loadWelcomeBoardModel();
+            loadOldBuildingModel();
+            
+            // Load Chaos Emerald model
+            loadChaosEmeraldModel();
         }
 
         function createFlashlight() {
@@ -1583,6 +1595,228 @@ async function loadTownHouseModel() {
         console.error('Gagal memuat model Town House:', error);
     }
 }
+
+async function loadBillboardModel() {
+    try {
+        const loader = new GLTFLoader();
+        const gltf = await loader.loadAsync('/model/abandoned_billboard.glb');
+        const billboard = gltf.scene;
+        
+        // Position the billboard appropriately
+        billboard.position.set(1167.03, 0.1, -139.73); // Adjust coordinates as needed
+        billboard.scale.set(50, 50, 50); // Adjust scale as needed
+        billboard.rotation.y = Math.PI - 1.2; // Adjust rotation as needed
+
+        billboard.traverse(child => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                if (child.material) {
+                    child.material.shadowSide = THREE.FrontSide;
+                }
+            }
+        });
+
+        scene.add(billboard);
+
+        // Add collision box - using smaller values since it's a thin structure
+        createCollisionBox(billboard, 0, 5, 0, 0.3, 0.8, 0.1);
+    } catch (error) {
+        console.error('Failed to load billboard model:', error);
+    }
+}
+
+async function loadTungTung() {
+    try {
+        const loader = new GLTFLoader();
+        const gltf = await loader.loadAsync('/model/tung_tung_tung_sahur_for_horror_free_download.glb');
+        const horrorAudio = gltf.scene;
+        
+        // Position the horror audio model appropriately
+        horrorAudio.position.set(363.46, 0.1, -79.52); // Adjust coordinates as needed
+        horrorAudio.scale.set(15, 15, 15); // Adjust scale as needed
+        horrorAudio.rotation.y = (Math.PI) + 1.2; // Adjust rotation as needed
+
+        horrorAudio.traverse(child => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                if (child.material) {
+                    child.material.shadowSide = THREE.FrontSide;
+                }
+            }
+        });
+
+        scene.add(horrorAudio);
+
+        // Add collision box with small footprint
+        createCollisionBox(horrorAudio, 0, 5, 0, 0.2, 0.8, 0.2);
+    } catch (error) {
+        console.error('Failed to load horror audio model:', error);
+    }
+}
+
+async function loadFarmHouseModel() {
+    try {
+        const loader = new GLTFLoader();
+        const gltf = await loader.loadAsync('/model/Farm house.glb');
+        const farmHouse = gltf.scene;
+        
+        // Position the farm house appropriately
+        farmHouse.position.set(800, 0.1, 200); // Adjust coordinates as needed
+        farmHouse.scale.set(12, 12, 12); // Adjust scale as needed
+        farmHouse.rotation.y = Math.PI; // Adjust rotation as needed
+
+        farmHouse.traverse(child => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                if (child.material) {
+                    child.material.shadowSide = THREE.FrontSide;
+                }
+            }
+        });
+
+        scene.add(farmHouse);
+
+        // Add collision box with appropriate size
+        createCollisionBox(farmHouse, 0, 10, 0, 0.8, 1, 0.8);
+    } catch (error) {
+        console.error('Failed to load farm house model:', error);
+    }
+}
+
+async function loadWelcomeBoardModel() {
+    try {
+        const loader = new GLTFLoader();
+        const gltf = await loader.loadAsync('/model/malaysia_road_sign.glb');
+        const welcomeBoard = gltf.scene;
+        
+        // Position the welcome board
+        welcomeBoard.position.set(-423.31, 0.1, -245.07); // Adjust coordinates as needed
+        welcomeBoard.scale.set(75, 75, 155); // Adjust scale as needed
+        welcomeBoard.rotation.y = 0; // Adjust rotation as needed
+
+        welcomeBoard.traverse(child => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                if (child.material) {
+                    child.material.shadowSide = THREE.FrontSide;
+                }
+            }
+        });
+
+        scene.add(welcomeBoard);
+
+        // Add collision box - using thinner values since it's a gate structure
+        createCollisionBox(welcomeBoard, 0, 10, 0, 0, 0, 0);
+    } catch (error) {
+        console.error('Failed to load welcome board model:', error);
+    }
+}
+
+async function loadOldBuildingModel() {
+    try {
+        const loader = new GLTFLoader();
+        const gltf = await loader.loadAsync('/model/old_building__lowpoly.glb');
+        const oldBuilding = gltf.scene;
+        
+        // Position the old building
+        oldBuilding.position.set(550, 0.1, 200); // Adjust coordinates as needed
+        oldBuilding.scale.set(20, 20, 20); // Adjust scale as needed
+        oldBuilding.rotation.y = Math.PI / 2; // Adjust rotation as needed
+
+        oldBuilding.traverse(child => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                if (child.material) {
+                    child.material.shadowSide = THREE.FrontSide;
+                }
+            }
+        });
+
+        scene.add(oldBuilding);
+
+        // Add collision box with appropriate size
+        createCollisionBox(oldBuilding, 0, 10, 0, 0.8, 1, 0.8);
+    } catch (error) {
+        console.error('Failed to load old building model:', error);
+    }
+}
+
+// Add this function to load the Chaos Emerald
+async function loadChaosEmeraldModel() {
+    try {
+        const loader = new GLTFLoader();
+        const gltf = await loader.loadAsync('/model/chaos_emerald_-_sonic_the_hedgehog.glb');
+        chaosEmerald = gltf.scene;
+        
+        // Position the emerald
+        chaosEmerald.position.set(0, 5, 0); // Adjust position as needed
+        chaosEmerald.scale.set(5, 5, 5); // Adjust scale as needed
+
+        // Add rotating animation
+        chaosEmerald.rotation.y = 0;
+
+        // Make it emit light
+        const emeraldLight = new THREE.PointLight(0x00ff00, 2, 50);
+        emeraldLight.position.set(0, 0, 0);
+        chaosEmerald.add(emeraldLight);
+
+        chaosEmerald.traverse(child => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                if (child.material) {
+                    child.material.shadowSide = THREE.FrontSide;
+                    // Add some emission for glow effect
+                    child.material.emissive = new THREE.Color(0x00ff00);
+                    child.material.emissiveIntensity = 0.5;
+                }
+            }
+        });
+
+        scene.add(chaosEmerald);
+
+    } catch (error) {
+        console.error('Failed to load Chaos Emerald model:', error);
+    }
+}
+
+// Add this function to check for emerald collection
+function checkEmeraldCollection() {
+    if (!isEmeraldCollected && chaosEmerald) {
+        const playerPosition = isDriving ? carModel.position : camera.position;
+        const distance = playerPosition.distanceTo(chaosEmerald.position);
+        
+        // Collection radius - adjust as needed
+        const collectionRadius = 10;
+        
+        if (distance < collectionRadius) {
+            // Collect the emerald
+            isEmeraldCollected = true;
+            scene.remove(chaosEmerald);
+            
+            // Add collection effect/sound if you want
+            console.log("Chaos Emerald collected!");
+            
+            // Optional: Add some visual feedback
+            const flashEffect = new THREE.PointLight(0x00ff00, 5, 100);
+            flashEffect.position.copy(chaosEmerald.position);
+            scene.add(flashEffect);
+            
+            // Remove the flash effect after a short delay
+            setTimeout(() => {
+                scene.remove(flashEffect);
+            }, 500);
+        }
+    }
+}
+
+// Add these lines in your animate() function, before the renderer.render() call:
+checkEmeraldCollection();
     </script>
 </body>
 </html>
