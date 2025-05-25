@@ -46,7 +46,7 @@
         let moveRight = false;
         let velocity = new THREE.Vector3();
         let prevTime = performance.now();
-        const speed = 100.0;
+        const speed = 200.0;
 
         // Deklarasikan variabel global untuk lampu dan status mode
         let ambientLight, directionalLight;
@@ -1470,7 +1470,7 @@ function checkCarCollisions(newPosition) {
                 const policeStation = gltf.scene;
                 // Posisikan police station di lokasi yang sesuai
                 policeStation.position.set(611, 0.1, 206); // Sesuaikan koordinat sesuai kebutuhan
-                policeStation.scale.set(1,1,1); // Sesuaikan skala sesuai kebutuhan
+                policeStation.scale.set(3.2,3.2,3.2); // Sesuaikan skala sesuai kebutuhan
                 policeStation.rotation.y = Math.PI; // Sesuaikan rotasi sesuai kebutuhan
 
                 policeStation.traverse(child => {
@@ -1486,7 +1486,7 @@ function checkCarCollisions(newPosition) {
                 scene.add(policeStation);
 
                 // Tambahkan collision box
-                createCollisionBox(policeStation, 0, 10, 0, 1, 1, 1);
+                createCollisionBox(policeStation, 0, 10, 0, 0.7, 0.7, 0.7);
             } catch (error) {
                 console.error('Gagal memuat model police station:', error);
             }
@@ -1516,7 +1516,7 @@ function checkCarCollisions(newPosition) {
                 scene.add(warehouse);
 
                 // Mengecilkan collision box dengan mengubah parameter scaling
-                createCollisionBox(warehouse, 0, 6, 0, 0.5, 0.8, 0.5); // Ubah nilai scaling menjadi lebih kecil
+                createCollisionBox(warehouse, 0, 10, 0, 0.9, 0.9, 0.9); // Ubah nilai scaling menjadi lebih kecil
             } catch (error) {
                 console.error('Gagal memuat model warehouse:', error);
             }
