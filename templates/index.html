@@ -239,6 +239,8 @@
             loadSmallBuildingModel();
             loadBakeryModel();
             loadHungryJacksModel();
+            loadPoliceStationModel(); 
+            loadWarehouseModel();
         }
 
         function createFlashlight() {
@@ -1457,6 +1459,65 @@ function checkCarCollisions(newPosition) {
                 createCollisionBox(supermarket, 0, 10, 0, 1, 1, 1);
             } catch (error) {
                 console.error('Gagal memuat model supermarket:', error);
+            }
+        }
+
+        async function loadPoliceStationModel() {
+            try {
+                const loader = new GLTFLoader();
+                const gltf = await loader.loadAsync('/model/police_station.glb');
+                const policeStation = gltf.scene;
+                // Posisikan police station di lokasi yang sesuai
+                policeStation.position.set(-99, -85, 206); // Sesuaikan koordinat sesuai kebutuhan
+                policeStation.scale.set(1,1,1); // Sesuaikan skala sesuai kebutuhan
+                policeStation.rotation.y = Math.PI; // Sesuaikan rotasi sesuai kebutuhan
+
+                policeStation.traverse(child => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        if (child.material) {
+                            child.material.shadowSide = THREE.FrontSide;
+                        }
+                    }
+                });
+
+                scene.add(policeStation);
+
+                // Tambahkan collision box
+                createCollisionBox(policeStation, 0, 10, 0, 1, 1, 1);
+            } catch (error) {
+                console.error('Gagal memuat model police station:', error);
+            }
+        }
+
+        async function loadWarehouseModel() {
+            try {
+                const loader = new GLTFLoader();
+                const gltf = await loader.loadAsync('/model/warehouse_building.glb');
+                const warehouse = gltf.scene;
+                
+                // Posisikan warehouse di lokasi yang sesuai
+                warehouse.position.set(-140, 0.1, 212);
+                warehouse.scale.set(12, 12, 12);
+                warehouse.rotation.y = Math.PI;
+
+                warehouse.traverse(child => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        if (child.material) {
+                            child.material.shadowSide = THREE.FrontSide;
+                        }
+                    }
+                });
+
+                scene.add(warehouse);
+
+                // Mengecilkan collision box dengan mengubah parameter scaling
+                createCollisionBox(warehouse, 0, 6, 0, 0.5, 0.8, 0.5); // Ubah nilai scaling menjadi lebih kecil
+            } catch (error) {
+                console.error('Gagal memuat model warehouse:', error);
             }
         }
     </script>
