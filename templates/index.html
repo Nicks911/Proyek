@@ -1497,12 +1497,12 @@ function checkCarCollisions(newPosition) {
         async function loadWarehouseModel() {
             try {
                 const loader = new GLTFLoader();
-                const gltf = await loader.loadAsync('/model/warehouse_building.glb');
+                const gltf = await loader.loadAsync('/model/asia_building.glb');
                 const warehouse = gltf.scene;
                 
                 // Posisikan warehouse di lokasi yang sesuai
                 warehouse.position.set(-140, 0.1, 212);
-                warehouse.scale.set(12, 12, 12);
+                warehouse.scale.set(2.2, 2.2, 2.2);
                 warehouse.rotation.y = Math.PI;
 
                 warehouse.traverse(child => {
@@ -1518,7 +1518,7 @@ function checkCarCollisions(newPosition) {
                 scene.add(warehouse);
 
                 // Mengecilkan collision box dengan mengubah parameter scaling
-                createCollisionBox(warehouse, 0, 10, 0, 0.9, 0.9, 0.9); // Ubah nilai scaling menjadi lebih kecil
+                createCollisionBox(warehouse, 0, 10, 0, 1, 1, 1); // Ubah nilai scaling menjadi lebih kecil
             } catch (error) {
                 console.error('Gagal memuat model warehouse:', error);
             }
