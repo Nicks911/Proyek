@@ -241,6 +241,7 @@
             loadHungryJacksModel();
             loadPoliceStationModel(); 
             loadWarehouseModel();
+            loadStopSign();
         }
 
         function createFlashlight() {
@@ -1468,7 +1469,7 @@ function checkCarCollisions(newPosition) {
                 const gltf = await loader.loadAsync('/model/police_station.glb');
                 const policeStation = gltf.scene;
                 // Posisikan police station di lokasi yang sesuai
-                policeStation.position.set(-99, -85, 206); // Sesuaikan koordinat sesuai kebutuhan
+                policeStation.position.set(611, 0.1, 206); // Sesuaikan koordinat sesuai kebutuhan
                 policeStation.scale.set(1,1,1); // Sesuaikan skala sesuai kebutuhan
                 policeStation.rotation.y = Math.PI; // Sesuaikan rotasi sesuai kebutuhan
 
@@ -1518,6 +1519,36 @@ function checkCarCollisions(newPosition) {
                 createCollisionBox(warehouse, 0, 6, 0, 0.5, 0.8, 0.5); // Ubah nilai scaling menjadi lebih kecil
             } catch (error) {
                 console.error('Gagal memuat model warehouse:', error);
+            }
+        }
+
+        async function loadStopSign() {
+            try {
+                const loader = new GLTFLoader();
+                const gltf = await loader.loadAsync('/model/stop_sign.glb');
+                const stopsign = gltf.scene;
+                
+                // Posisikan stopsign di lokasi yang sesuai
+                stopsign.position.set(-330.94, 40, 88.23);
+                stopsign.scale.set(1, 2, 1);
+                stopsign.rotation.y = Math.PI + 0.66;
+
+                stopsign.traverse(child => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        if (child.material) {
+                            child.material.shadowSide = THREE.FrontSide;
+                        }
+                    }
+                });
+
+                scene.add(stopsign);
+
+                // Mengecilkan collision box dengan mengubah parameter scaling
+                createCollisionBox(stopsign, 0, 10, 0, 1, 1, 1); // Ubah nilai scaling menjadi lebih kecil
+            } catch (error) {
+                console.error('Gagal memuat model stopsign:', error);
             }
         }
     </script>
