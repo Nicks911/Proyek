@@ -1377,7 +1377,7 @@ function checkCarCollisions(newPosition) {
             if (!carModel) return;
 
             // Offset kamera di atas dan sedikit di belakang mobil
-            const cameraOffset = new THREE.Vector3(0, 20, -40); // Y = atas, Z = belakang
+            const cameraOffset = new THREE.Vector3(0, 20, -10); // Y = atas, Z = belakang
             // Transform offset ke ruang dunia sesuai rotasi mobil
             const worldOffset = cameraOffset.applyMatrix4(new THREE.Matrix4().makeRotationY(carModel.rotation.y));
             camera.position.copy(carModel.position).add(worldOffset);
