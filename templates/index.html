@@ -1119,7 +1119,7 @@ function checkCarCollisions(newPosition) {
                 if (!checkCarCollisions(plannedPosition)) {
                     // Tidak ada collision, update posisi mobil
                     carModel.position.copy(plannedPosition);
-                    
+
                     // Update posisi collision box mobil
                     if (carCollisionBox) {
                         carCollisionBox.position.copy(carModel.position);
@@ -1128,6 +1128,21 @@ function checkCarCollisions(newPosition) {
                     // Ada collision, mobil tidak bergerak
                     console.log("Car collision detected!");
                 }
+
+                // --- Tambahkan rotasi mobil saat belok ---
+    // Hanya rotasi jika ada input kiri/kanan
+    if (moveLeft || moveRight) {
+        // Tentukan arah rotasi: kiri negatif, kanan positif
+        let turnDirection = 0;
+        if (moveLeft) turnDirection -= 1;
+        if (moveRight) turnDirection += 1;
+
+        // Atur kecepatan rotasi (radian per detik)
+        const turnSpeed = 1.5; // semakin besar semakin cepat belok
+
+        // Update rotasi Y mobil
+        carModel.rotation.y -= turnDirection * turnSpeed * delta;
+    }
 
                 updateCarCamera();
             } else {
@@ -1201,34 +1216,35 @@ function checkCarCollisions(newPosition) {
             if (isFlashlightOn) {
                 if (isDriving && carModel) {
                     // Nonaktifkan flashlight utama saat driving
-                    
                     flashlight.visible = false;
-                    // Posisikan kedua headlight
+
+                    // Offset headlight relatif terhadap posisi mobil
                     const offsetY = 5; // Ketinggian lampu
                     const offsetX = 5; // Jarak horizontal antar lampu
                     const forwardOffset = 25.8; // Jarak ke depan dari mobil
-                    
-                    // Posisi dan aktifkan lampu kiri
-                    leftHeadlight.position.copy(carModel.position);
-                    leftHeadlight.position.y += offsetY;
-                    leftHeadlight.position.x += forwardOffset;
-                    leftHeadlight.position.z -= offsetX;
+
+                    // Ambil arah depan mobil dari rotasi mobil
+                    const carForward = new THREE.Vector3(0, 0, 1).applyEuler(carModel.rotation).normalize();
+                    const carRight = new THREE.Vector3(1, 0, 0).applyEuler(carModel.rotation).normalize();
+
+                    // Posisi headlight kiri
+                    leftHeadlight.position.copy(carModel.position)
+                        .add(carForward.clone().multiplyScalar(forwardOffset))
+                        .add(carRight.clone().multiplyScalar(-offsetX))
+                        .add(new THREE.Vector3(0, offsetY, 0));
                     leftHeadlight.visible = true;
-                    
-                    // Posisi dan aktifkan lampu kanan
-                    rightHeadlight.position.copy(carModel.position);
-                    rightHeadlight.position.y += offsetY;
-                    rightHeadlight.position.x += forwardOffset;
-                    rightHeadlight.position.z += offsetX;
+
+                    // Posisi headlight kanan
+                    rightHeadlight.position.copy(carModel.position)
+                        .add(carForward.clone().multiplyScalar(forwardOffset))
+                        .add(carRight.clone().multiplyScalar(offsetX))
+                        .add(new THREE.Vector3(0, offsetY, 0));
                     rightHeadlight.visible = true;
-                    
-                    // Arahkan kedua lampu ke depan
+
+                    // Target headlight ke depan mobil
                     const targetDistance = 30;
-                    leftHeadlight.target.position.copy(leftHeadlight.position);
-                    rightHeadlight.target.position.copy(rightHeadlight.position);
-                    leftHeadlight.target.position.x += targetDistance;
-                    rightHeadlight.target.position.x += targetDistance;
-                    
+                    leftHeadlight.target.position.copy(leftHeadlight.position).add(carForward.clone().multiplyScalar(targetDistance));
+                    rightHeadlight.target.position.copy(rightHeadlight.position).add(carForward.clone().multiplyScalar(targetDistance));
                     leftHeadlight.target.updateMatrixWorld();
                     rightHeadlight.target.updateMatrixWorld();
                 } else {
@@ -1357,11 +1373,19 @@ function checkCarCollisions(newPosition) {
         }
 
         function updateCarCamera() {
-            // Kamera di atas mobil, naikkan sedikit lebih tinggi (dari 20 menjadi 25)
-            camera.position.copy(carModel.position).add(new THREE.Vector3(0, 15, 0));
-            // Arahkan kamera ke depan mobil (WEST = -X dunia)
-            const target = carModel.position.clone().add(new THREE.Vector3(20, 10, 0));
-            camera.lookAt(target);
+            // Kamera mengikuti posisi dan rotasi mobil
+            if (!carModel) return;
+
+            // Offset kamera di atas dan sedikit di belakang mobil
+            const cameraOffset = new THREE.Vector3(0, 20, -40); // Y = atas, Z = belakang
+            // Transform offset ke ruang dunia sesuai rotasi mobil
+            const worldOffset = cameraOffset.applyMatrix4(new THREE.Matrix4().makeRotationY(carModel.rotation.y));
+            camera.position.copy(carModel.position).add(worldOffset);
+
+            // Kamera menghadap ke arah depan mobil
+            const lookAtOffset = new THREE.Vector3(0, 10, 40); // Y = sedikit atas, Z = depan
+            const worldLookAt = lookAtOffset.applyMatrix4(new THREE.Matrix4().makeRotationY(carModel.rotation.y));
+            camera.lookAt(carModel.position.clone().add(worldLookAt));
         }
 
         async function loadCathedralModel() {
