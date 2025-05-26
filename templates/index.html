@@ -46,7 +46,7 @@
         let moveRight = false;
         let velocity = new THREE.Vector3();
         let prevTime = performance.now();
-        const speed = 300.0;
+        const speed = 50.0;
 
         // Deklarasikan variabel global untuk lampu dan status mode
         let ambientLight, directionalLight;
@@ -1234,13 +1234,16 @@ function checkCarCollisions(newPosition) {
                 } else {
                     // Mode berjalan normal
                     const offsetY = -1;
+                    const offsetX = 10;
                     flashlight.position.copy(camera.position);
                     flashlight.position.y += offsetY;
+                    flashlight.position.x += offsetX;
                     const targetDistance = 10;
                     const forwardDirection = new THREE.Vector3();
                     camera.getWorldDirection(forwardDirection);
                     flashlight.target.position.copy(camera.position).add(forwardDirection.multiplyScalar(targetDistance));
                     flashlight.target.position.y += offsetY;
+                    flashlight.target.position.x += offsetX;
                     flashlight.target.updateMatrixWorld();
                     
                     // Nonaktifkan headlight mobil
