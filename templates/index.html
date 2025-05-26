@@ -106,6 +106,9 @@ let emeraldCollectSound;
 let creepySinging;
 let isCreepySingingPlaying = false;
 
+// Tambahkan di global variables (di atas)
+let creepyTriggered = false;
+
 // Inisialisasi scene
         function init() {
             // Membuat scene
@@ -1049,19 +1052,19 @@ function checkCarCollisions(newPosition) {
                 }
 
                 // --- Tambahkan rotasi mobil saat belok ---
-    // Hanya rotasi jika ada input kiri/kanan
-    if (moveLeft || moveRight) {
-        // Tentukan arah rotasi: kiri negatif, kanan positif
-        let turnDirection = 0;
-        if (moveLeft) turnDirection -= 1;
-        if (moveRight) turnDirection += 1;
+                // Hanya rotasi jika ada input kiri/kanan
+                if (moveLeft || moveRight) {
+                    // Tentukan arah rotasi: kiri negatif, kanan positif
+                    let turnDirection = 0;
+                    if (moveLeft) turnDirection -= 1;
+                    if (moveRight) turnDirection += 1;
 
-        // Atur kecepatan rotasi (radian per detik)
-        const turnSpeed = 1.5; // semakin besar semakin cepat belok
+                    // Atur kecepatan rotasi (radian per detik)
+                    const turnSpeed = 1.5; // semakin besar semakin cepat belok
 
-        // Update rotasi Y mobil
-        carModel.rotation.y -= turnDirection * turnSpeed * delta;
-    }
+                    // Update rotasi Y mobil
+                    carModel.rotation.y -= turnDirection * turnSpeed * delta;
+                }
 
                 updateCarCamera();
             } else {
@@ -1199,6 +1202,7 @@ function checkCarCollisions(newPosition) {
             updateCompass();
             
             prevTime = time;
+            checkCreepySoundTrigger();
             renderer.render(scene, camera);
             
             const infoEl = document.getElementById('info');
@@ -1832,15 +1836,15 @@ function checkEmeraldCollection() {
 // Add this function after the existing functions
 function checkCreepySoundTrigger() {
     if (isNight) {
-        // Define trigger area range
+        // Area trigger
         const triggerArea = {
-            minX: -439.46,
-            maxX: -425.87,
+            minX: -448.46,
+            maxX: -400.87,
             minZ: -81.18,
             maxZ: 75.85
         };
 
-        // Check if player is within the trigger area
+        // Cek apakah player di area trigger
         const isInTriggerArea = (
             camera.position.x >= triggerArea.minX && 
             camera.position.x <= triggerArea.maxX &&
@@ -1848,8 +1852,13 @@ function checkCreepySoundTrigger() {
             camera.position.z <= triggerArea.maxZ
         );
 
-        if (isInTriggerArea && !isCreepySingingPlaying) {
-            // Start playing creepy singing
+        // Jika masuk area dan belum pernah trigger
+        if (isInTriggerArea && !creepyTriggered) {
+            creepyTriggered = true;
+        }
+
+        // Jika sudah pernah trigger dan sound belum main, play
+        if (creepyTriggered && !isCreepySingingPlaying) {
             if (creepySinging) {
                 creepySinging.loop = true;
                 creepySinging.play().catch(error => {
@@ -1857,21 +1866,15 @@ function checkCreepySoundTrigger() {
                 });
                 isCreepySingingPlaying = true;
             }
-        } else if (!isInTriggerArea && isCreepySingingPlaying) {
-            // Stop sound when leaving trigger area
-            if (creepySinging) {
-                creepySinging.pause();
-                creepySinging.currentTime = 0;
-                isCreepySingingPlaying = false;
-            }
         }
     } else {
-        // Stop sound when switching to day mode
+        // Reset saat mode siang
         if (isCreepySingingPlaying && creepySinging) {
             creepySinging.pause();
             creepySinging.currentTime = 0;
             isCreepySingingPlaying = false;
         }
+        creepyTriggered = false;
     }
 }
     </script>
