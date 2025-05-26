@@ -93,7 +93,20 @@ let chaosEmeralds = [];
 let collectedEmeralds = 0;
 const TOTAL_EMERALDS = 10;
 
-        // Inisialisasi scene
+        // Add this with other global variables at the top
+let flashlightSound;
+
+// Add with other global variables at the top
+let carEngineSound;
+
+// Add to global variables at the top
+let emeraldCollectSound;
+
+// Add to global variables at the top
+let creepySinging;
+let isCreepySingingPlaying = false;
+
+// Inisialisasi scene
         function init() {
             // Membuat scene
             scene = new THREE.Scene();
@@ -161,9 +174,6 @@ const TOTAL_EMERALDS = 10;
             
             // Load model hospital
             loadHospitalModel();
-            
-            // Tambahkan streetlamp sepanjang ujung map
-            //createStreetlamps();
             
             // Load model skyscraper
             loadSkyscraperModel();
@@ -257,6 +267,7 @@ const TOTAL_EMERALDS = 10;
             
             // Load Chaos Emerald model
             loadChaosEmeraldModel();
+            initAudio();
         }
 
         function createFlashlight() {
@@ -283,8 +294,14 @@ const TOTAL_EMERALDS = 10;
         function toggleFlashlight() {
             isFlashlightOn = !isFlashlightOn;
             flashlight.visible = isFlashlightOn;
-            // Opsional: tambahkan efek suara klik
-            //playClickSound();
+            
+            // Play flashlight sound
+            if (flashlightSound) {
+                flashlightSound.currentTime = 0; // Reset sound to start
+                flashlightSound.play().catch(error => {
+                    console.log("Audio play failed:", error);
+                });
+            }
         }
         
         function playClickSound() {
@@ -639,108 +656,6 @@ const TOTAL_EMERALDS = 10;
             }
         }
 
-        async function createStreetlamps() {
-            const streetlampPath = '/model/spherical_street_lamp.glb';
-            const loader = new GLTFLoader();
-
-            try {
-                const gltf = await loader.loadAsync(streetlampPath);
-                const baseLamp = gltf.scene;
-                baseLamp.scale.set(20, 20, 20);
-
-                const spacing = 150;
-                const roadWidth = 100;
-                const roadLength = 1000;
-                const offsetFromRoadCenter = roadWidth / 2 + 5;
-                
-                // Create global array to manage streetlamp lights
-                if (!window.streetLampLights) window.streetLampLights = [];
-                
-                // --- Lampu untuk sisi Utara (Z negatif) ---
-                for (let x = -roadLength; x <= roadLength; x += spacing) {
-                    let lampNorth = baseLamp.clone();
-                    lampNorth.position.set(x, 0, -offsetFromRoadCenter);
-                    lampNorth.rotation.y = Math.PI * 0.1/4;
-                    scene.add(lampNorth);
-                    createCollisionBox(lampNorth, 0, 10, 0, 0.2, 1, 0.2);
-
-                    // Add a light bulb glow material to the lamp head
-                    const lampHeadMaterial = new THREE.MeshStandardMaterial({
-                        color: 0xffeeaa,
-                        emissive: 0xffeeaa,
-                        emissiveIntensity: isNight ? 1.0 : 0.0
-                    });
-                    
-                    // Find the lamp head mesh and apply the glowing material
-                    lampNorth.traverse(child => {
-                        if (child.isMesh && (child.name.toLowerCase().includes('bulb') || 
-                            child.name.toLowerCase().includes('glass') || 
-                            child.name.toLowerCase().includes('light'))) {
-                            child.material = lampHeadMaterial;
-                            child.userData.isLampBulb = true;
-                        }
-                    });
-                    
-                    // Only create actual lights for every 3rd lamp to reduce performance impact
-                    if (Math.abs(x) % (spacing * 3) === 0) {
-                        // Use point light with no shadows for better performance
-                        const lampLight = new THREE.PointLight(0xffeeaa, 1.5, 150);
-                        lampLight.position.set(x, 48, -offsetFromRoadCenter); // Updated to Y=48 for correct lightbulb position
-                        lampLight.visible = isNight;
-                        // Disable shadows for better performance
-                        lampLight.castShadow = false;
-                        
-                        scene.add(lampLight);
-                        window.streetLampLights.push(lampLight);
-                    }
-                }
-
-                // --- Lampu untuk sisi Selatan (Z positif) ---
-                for (let x = -roadLength; x <= roadLength; x += spacing) {
-                    let lampSouth = baseLamp.clone();
-                    lampSouth.position.set(x, 0, offsetFromRoadCenter);
-                    lampSouth.rotation.y = -Math.PI * 0.1/4;
-                    scene.add(lampSouth);
-                    createCollisionBox(lampSouth, 0, 10, 0, 0.2, 1, 0.2);
-
-                    // Add a light bulb glow material to the lamp head
-                    const lampHeadMaterial = new THREE.MeshStandardMaterial({
-                        color: 0xffeeaa,
-                        emissive: 0xffeeaa,
-                        emissiveIntensity: isNight ? 1.0 : 0.0
-                    });
-                    
-                    // Find the lamp head mesh and apply the glowing material
-                    lampSouth.traverse(child => {
-                        if (child.isMesh && (child.name.toLowerCase().includes('bulb') || 
-                            child.name.toLowerCase().includes('glass') || 
-                            child.name.toLowerCase().includes('light'))) {
-                            child.material = lampHeadMaterial;
-                            child.userData.isLampBulb = true;
-                        }
-                    });
-                    
-                    // Only create actual lights for every 3rd lamp to reduce performance impact
-                    if (Math.abs(x) % (spacing * 3) === 0) {
-                        // Use point light with no shadows for better performance
-                        const lampLight = new THREE.PointLight(0xffeeaa, 1.5, 150);
-                        lampLight.position.set(x, 48, offsetFromRoadCenter); // Updated to Y=48 for correct lightbulb position
-                        lampLight.visible = isNight;
-                        // Disable shadows for better performance
-                        lampLight.castShadow = false;
-                        
-                        scene.add(lampLight);
-                        window.streetLampLights.push(lampLight);
-                    }
-                }
-
-            } catch (error) {
-                console.error('Error loading streetlamp model:', error);
-                createSimpleStreetlamps();
-            }
-        }
-
-
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
@@ -902,6 +817,9 @@ const TOTAL_EMERALDS = 10;
                         light.penumbra = 0.5; // Membuat tepi cahaya lebih lembut
                     }
                 });
+                
+                // Check if player is in trigger area when switching to night
+                checkCreepySoundTrigger();
                 
             } else {
                 // Kembali ke mode siang: background dan intensitas normal
@@ -1290,6 +1208,25 @@ function checkCarCollisions(newPosition) {
 
         init();
 
+        function initAudio() {
+            // Create audio element for flashlight sound
+            flashlightSound = new Audio('/audio/sfx/ytmp3free.cc_flashlight-sound-effect-sfx-youtubemp3free.org.mp3');
+            flashlightSound.volume = 0.5; // Adjust volume as needed
+
+            // Add car engine sound
+            carEngineSound = new Audio('/audio/sfx/ytmp3free.cc_sound-effect-suara-mobil-car-engine-sound-effect-youtubemp3free.org.mp3');
+            carEngineSound.volume = 0.3; // Adjust volume as needed
+            
+            // Add emerald collect sound
+            emeraldCollectSound = new Audio('/audio/sfx/ytmp3free.cc_sonic-ring-sound-effect-hd-youtubemp3free.org.mp3');
+            emeraldCollectSound.volume = 0.4; // Adjust volume as needed
+            
+            // Add creepy singing sound
+            creepySinging = new Audio('/audio/sfx/ytmp3free.cc_creepy-little-girl-singing-lalala-scary-horror-voice-hd-free-youtubemp3free.org.mp3');
+            creepySinging.volume = 0.3;
+            creepySinging.loop = true; // Enable looping
+        }
+
         function updateCompass() {
             // Dapatkan rotasi kamera (hanya yaw, pitch tidak dipakai)
             let yawDeg = THREE.MathUtils.radToDeg(camera.rotation.y);
@@ -1330,6 +1267,14 @@ function checkCarCollisions(newPosition) {
 
             // Set kecepatan mobil lebih tinggi saat driving mode
             carSpeed = 80; // misal 250, bisa diubah sesuai keinginan
+
+            // Play car engine sound once
+            if (carEngineSound) {
+                carEngineSound.currentTime = 0; // Reset to start
+                carEngineSound.play().catch(error => {
+                    console.log("Audio play failed:", error);
+                });
+            }
 
             // Check if this is first time entering car
             if (firstTimeEnteringCar) {
@@ -1787,12 +1732,12 @@ async function loadChaosEmeraldModel() {
             { x: -483.04, y: 5, z: 194.15 },
             { x: -142.41, y: 5, z: -366.10 },
             { x: 360, y: 5, z: -182.67 },
-            { x: 300, y: 5, z: 300 },
-            { x: -300, y: 5, z: -300 } // didalam rumah sakit
+            { x: 300, y: 5, z: 0 },
+            { x: -300, y: 5, z: 0 } // didalam rumah sakit
             ,
             { x: 500, y: 5, z: 0 },
-            { x: 0, y: 5, z: 500 },
-            { x: -500, y: 5, z: -500 }
+            { x: 0, y: 5, z: 0 },
+            { x: 242.86, y: 13, z: 332.78 }
         ];
 
         for (let i = 0; i < TOTAL_EMERALDS; i++) {
@@ -1835,38 +1780,98 @@ async function loadChaosEmeraldModel() {
 
 // Update the checkEmeraldCollection function
 function checkEmeraldCollection() {
-    if (collectedEmeralds < TOTAL_EMERALDS) {
-        const playerPosition = isDriving ? carModel.position : camera.position;
+    if (collectedEmeralds < TOTAL_EMERALDS && !isDriving) {
+        const playerPosition = camera.position;
         
         chaosEmeralds.forEach((emerald, index) => {
-            if (emerald) {
-                const distance = playerPosition.distanceTo(emerald.position);
-                const collectionRadius = 10;
+            if (emerald && emeraldCollisionBoxes[index]) {
+                const collisionBox = emeraldCollisionBoxes[index];
+                const distance = playerPosition.distanceTo(collisionBox.position);
+                const collectionRadius = 5;
                 
                 if (distance < collectionRadius) {
-                    // Collect the emerald
+                    // Play collect sound
+                    if (emeraldCollectSound) {
+                        emeraldCollectSound.currentTime = 0; // Reset sound to start
+                        emeraldCollectSound.play().catch(error => {
+                            console.log("Audio play failed:", error);
+                                                                      });
+                    }
+
+                    // Rest of collection logic
                     scene.remove(emerald);
+                    scene.remove(collisionBox);
                     chaosEmeralds[index] = null;
+                    emeraldCollisionBoxes[index] = null;
                     collectedEmeralds++;
                     
+                    // Show collection message
                     console.log(`Chaos Emerald collected! (${collectedEmeralds}/${TOTAL_EMERALDS})`);
                     
-                    // Visual feedback
+                    // Visual feedback with green flash
                     const flashEffect = new THREE.PointLight(0x00ff00, 5, 100);
                     flashEffect.position.copy(emerald.position);
                     scene.add(flashEffect);
                     
+                    // Remove flash effect after 500ms
                     setTimeout(() => {
                         scene.remove(flashEffect);
                     }, 500);
 
-                    // Optional: Add victory message when all emeralds are collected
+                    // Victory message when all emeralds are collected
                     if (collectedEmeralds === TOTAL_EMERALDS) {
                         console.log("Congratulations! All Chaos Emeralds collected!");
+                        // You could add additional victory effects here
                     }
                 }
             }
         });
+    }
+}
+
+// Add this function after the existing functions
+function checkCreepySoundTrigger() {
+    if (isNight) {
+        // Define trigger area range
+        const triggerArea = {
+            minX: -439.46,
+            maxX: -425.87,
+            minZ: -81.18,
+            maxZ: 75.85
+        };
+
+        // Check if player is within the trigger area
+        const isInTriggerArea = (
+            camera.position.x >= triggerArea.minX && 
+            camera.position.x <= triggerArea.maxX &&
+            camera.position.z >= triggerArea.minZ && 
+            camera.position.z <= triggerArea.maxZ
+        );
+
+        if (isInTriggerArea && !isCreepySingingPlaying) {
+            // Start playing creepy singing
+            if (creepySinging) {
+                creepySinging.loop = true;
+                creepySinging.play().catch(error => {
+                    console.log("Audio play failed:", error);
+                });
+                isCreepySingingPlaying = true;
+            }
+        } else if (!isInTriggerArea && isCreepySingingPlaying) {
+            // Stop sound when leaving trigger area
+            if (creepySinging) {
+                creepySinging.pause();
+                creepySinging.currentTime = 0;
+                isCreepySingingPlaying = false;
+            }
+        }
+    } else {
+        // Stop sound when switching to day mode
+        if (isCreepySingingPlaying && creepySinging) {
+            creepySinging.pause();
+            creepySinging.currentTime = 0;
+            isCreepySingingPlaying = false;
+        }
     }
 }
     </script>
