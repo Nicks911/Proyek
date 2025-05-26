@@ -46,7 +46,7 @@
         let moveRight = false;
         let velocity = new THREE.Vector3();
         let prevTime = performance.now();
-        const speed = 50.0;
+        const speed = 300.0;
 
         // Deklarasikan variabel global untuk lampu dan status mode
         let ambientLight, directionalLight;
@@ -88,9 +88,10 @@
         // Tambahkan variabel global untuk kecepatan mobil
         let carSpeed = 80; // default
 
-        // Add these global variables at the top with other global declarations
-let chaosEmerald = null;
-let isEmeraldCollected = false;
+        // Add these global variables at the top
+let chaosEmeralds = [];
+let collectedEmeralds = 0;
+const TOTAL_EMERALDS = 10;
 
         // Inisialisasi scene
         function init() {
@@ -1778,72 +1779,96 @@ async function loadChaosEmeraldModel() {
     try {
         const loader = new GLTFLoader();
         const gltf = await loader.loadAsync('/model/chaos_emerald_-_sonic_the_hedgehog.glb');
-        chaosEmerald = gltf.scene;
         
-        // Position the emerald
-        chaosEmerald.position.set(0, 5, 0); // Adjust position as needed
-        chaosEmerald.scale.set(5, 5, 5); // Adjust scale as needed
+        // Create 10 emeralds at different positions
+        const emeraldPositions = [
+            { x: 0, y: 5, z: 0 },
+            { x: -715.01, y: 5, z: -389.81 },
+            { x: -483.04, y: 5, z: 194.15 },
+            { x: -142.41, y: 5, z: -366.10 },
+            { x: 360, y: 5, z: -182.67 },
+            { x: 300, y: 5, z: 300 },
+            { x: -300, y: 5, z: -300 } // didalam rumah sakit
+            ,
+            { x: 500, y: 5, z: 0 },
+            { x: 0, y: 5, z: 500 },
+            { x: -500, y: 5, z: -500 }
+        ];
 
-        // Add rotating animation
-        chaosEmerald.rotation.y = 0;
+        for (let i = 0; i < TOTAL_EMERALDS; i++) {
+            const emerald = gltf.scene.clone();
+            
+            // Position the emerald
+            emerald.position.set(
+                emeraldPositions[i].x,
+                emeraldPositions[i].y,
+                emeraldPositions[i].z
+            );
+            emerald.scale.set(5, 5, 5);
+            emerald.rotation.y = 0;
 
-        // Make it emit light
-        const emeraldLight = new THREE.PointLight(0x00ff00, 2, 50);
-        emeraldLight.position.set(0, 0, 0);
-        chaosEmerald.add(emeraldLight);
+            // Make it emit light
+            const emeraldLight = new THREE.PointLight(0x00ff00, 2, 50);
+            emeraldLight.position.set(0, 0, 0);
+            emerald.add(emeraldLight);
 
-        chaosEmerald.traverse(child => {
-            if (child.isMesh) {
-                child.castShadow = true;
-                child.receiveShadow = true;
-                if (child.material) {
-                    child.material.shadowSide = THREE.FrontSide;
-                    // Add some emission for glow effect
-                    child.material.emissive = new THREE.Color(0x00ff00);
-                    child.material.emissiveIntensity = 0.5;
+            emerald.traverse(child => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    if (child.material) {
+                        child.material.shadowSide = THREE.FrontSide;
+                        child.material.emissive = new THREE.Color(0x00ff00);
+                        child.material.emissiveIntensity = 0.5;
+                    }
+                }
+            });
+
+            scene.add(emerald);
+            chaosEmeralds.push(emerald);
+        }
+
+    } catch (error) {
+        console.error('Failed to load Chaos Emerald models:', error);
+    }
+}
+
+// Update the checkEmeraldCollection function
+function checkEmeraldCollection() {
+    if (collectedEmeralds < TOTAL_EMERALDS) {
+        const playerPosition = isDriving ? carModel.position : camera.position;
+        
+        chaosEmeralds.forEach((emerald, index) => {
+            if (emerald) {
+                const distance = playerPosition.distanceTo(emerald.position);
+                const collectionRadius = 10;
+                
+                if (distance < collectionRadius) {
+                    // Collect the emerald
+                    scene.remove(emerald);
+                    chaosEmeralds[index] = null;
+                    collectedEmeralds++;
+                    
+                    console.log(`Chaos Emerald collected! (${collectedEmeralds}/${TOTAL_EMERALDS})`);
+                    
+                    // Visual feedback
+                    const flashEffect = new THREE.PointLight(0x00ff00, 5, 100);
+                    flashEffect.position.copy(emerald.position);
+                    scene.add(flashEffect);
+                    
+                    setTimeout(() => {
+                        scene.remove(flashEffect);
+                    }, 500);
+
+                    // Optional: Add victory message when all emeralds are collected
+                    if (collectedEmeralds === TOTAL_EMERALDS) {
+                        console.log("Congratulations! All Chaos Emeralds collected!");
+                    }
                 }
             }
         });
-
-        scene.add(chaosEmerald);
-
-    } catch (error) {
-        console.error('Failed to load Chaos Emerald model:', error);
     }
 }
-
-// Add this function to check for emerald collection
-function checkEmeraldCollection() {
-    if (!isEmeraldCollected && chaosEmerald) {
-        const playerPosition = isDriving ? carModel.position : camera.position;
-        const distance = playerPosition.distanceTo(chaosEmerald.position);
-        
-        // Collection radius - adjust as needed
-        const collectionRadius = 10;
-        
-        if (distance < collectionRadius) {
-            // Collect the emerald
-            isEmeraldCollected = true;
-            scene.remove(chaosEmerald);
-            
-            // Add collection effect/sound if you want
-            console.log("Chaos Emerald collected!");
-            
-            // Optional: Add some visual feedback
-            const flashEffect = new THREE.PointLight(0x00ff00, 5, 100);
-            flashEffect.position.copy(chaosEmerald.position);
-            scene.add(flashEffect);
-            
-            // Remove the flash effect after a short delay
-            setTimeout(() => {
-                scene.remove(flashEffect);
-            }, 500);
-        }
-    }
-}
-
-// Add these lines in your animate() function, before the renderer.render() call:
-checkEmeraldCollection();
     </script>
 </body>
 </html>
