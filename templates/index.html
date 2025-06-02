@@ -31,6 +31,9 @@
     <div id="compass" style="position: absolute; top: 10px; left: 10px; color: white; font-family: monospace; background-color: rgba(0, 0, 0, 0.5); padding: 5px; border-radius: 5px;">
   Direction: -
 </div>
+    <div id="emerald-message" style="position: absolute; top: 60px; left: 10px; color: #00ff00; font-family: monospace; background: rgba(0,0,0,0.7); padding: 8px 16px; border-radius: 5px; font-size: 18px; z-index: 10;">
+  Kumpulkan 10 Chaos Emerald untuk menang!
+</div>
     
     <script type="module">
         // Import Three.js dari CDN dengan path yang benar
@@ -90,6 +93,7 @@
 
         // Add these global variables at the top
 let chaosEmeralds = [];
+let emeraldCollisionBoxes = []; // Tambahkan ini
 let collectedEmeralds = 0;
 const TOTAL_EMERALDS = 10;
 
@@ -1775,6 +1779,10 @@ async function loadChaosEmeraldModel() {
 
             scene.add(emerald);
             chaosEmeralds.push(emerald);
+
+            // Tambahkan collision box untuk emerald
+            const emeraldBox = createCollisionBox(emerald, 0, 5, 0, 0.3, 0.3, 0.3);
+            emeraldCollisionBoxes.push(emeraldBox);
         }
 
     } catch (error) {
@@ -1799,7 +1807,7 @@ function checkEmeraldCollection() {
                         emeraldCollectSound.currentTime = 0; // Reset sound to start
                         emeraldCollectSound.play().catch(error => {
                             console.log("Audio play failed:", error);
-                                                                      });
+                        });
                     }
 
                     // Rest of collection logic
@@ -1808,6 +1816,16 @@ function checkEmeraldCollection() {
                     chaosEmeralds[index] = null;
                     emeraldCollisionBoxes[index] = null;
                     collectedEmeralds++;
+                    
+                    // Update emerald message
+                    const emeraldMsg = document.getElementById('emerald-message');
+                    if (emeraldMsg) {
+                        if (collectedEmeralds === TOTAL_EMERALDS) {
+                            emeraldMsg.innerText = "Selamat! Semua Chaos Emerald telah dikumpulkan!";
+                        } else {
+                            emeraldMsg.innerText = `Chaos Emerald: ${collectedEmeralds}/${TOTAL_EMERALDS}`;
+                        }
+                    }
                     
                     // Show collection message
                     console.log(`Chaos Emerald collected! (${collectedEmeralds}/${TOTAL_EMERALDS})`);
