@@ -1210,7 +1210,29 @@ function checkCarCollisions(newPosition) {
             updateCompass();
             
             prevTime = time;
-            checkCreepySoundTrigger();
+
+            // Tambahkan di dalam fungsi animate(), sebelum renderer.render(scene, camera);
+for (let i = 0; i < chaosEmeralds.length; i++) {
+    const emerald = chaosEmeralds[i];
+    if (emerald) {
+        // Efek berputar
+        emerald.rotation.y += 1.5 * delta;
+
+        // Efek floating naik-turun
+        const baseY = emerald.userData.baseY !== undefined ? emerald.userData.baseY : emerald.position.y;
+        emerald.position.y = baseY + Math.sin(time * 0.002 + i) * 2;
+        emerald.userData.baseY = baseY;
+
+        // Update posisi emeraldCollisionBoxes jika masih ada
+        if (emeraldCollisionBoxes[i]) {
+            emeraldCollisionBoxes[i].position.copy(emerald.position);
+        }
+    }
+}
+
+// Panggil checkEmeraldCollection() di akhir animate()
+checkEmeraldCollection();
+
             renderer.render(scene, camera);
             
             const infoEl = document.getElementById('info');
@@ -1794,71 +1816,178 @@ async function loadChaosEmeraldModel() {
     }
 }
 
-// Update the checkEmeraldCollection function
-function checkEmeraldCollection() {
-    if (collectedEmeralds < TOTAL_EMERALDS && !isDriving) {
-        const playerPosition = camera.position;
+function updateEmeraldAnimation(emerald, index) {
+    const time = Date.now() * 0.001; // Convert to seconds
+    
+    // Rotasi emerald
+    emerald.rotation.y += 0.03;
+    emerald.rotation.x += 0.01;
+    
+    // Floating effect dengan variasi per emerald
+    const baseY = 8;
+    const floatHeight = 3;
+    const floatSpeed = 2 + (index * 0.3);
+    emerald.position.y = baseY + Math.sin(time * floatSpeed + index) * floatHeight;
+    
+    // Pulsing light effect
+    emerald.traverse(child => {
+        if (child.isMesh && child.material && child.material.emissive) {
+            const pulse = 0.2 + Math.sin(time * 3 + index) * 0.1;
+            child.material.emissiveIntensity = pulse;
+        }
+    });
+}
+
+function updateEmeraldUI() {
+    // Update counter di kanan atas
+    const emeraldCounter = document.getElementById('emerald-counter');
+    if (emeraldCounter) {
+        emeraldCounter.innerHTML = `💎 ${collectedEmeralds} / ${TOTAL_EMERALDS}`;
         
-        chaosEmeralds.forEach((emerald, index) => {
-            if (emerald && emeraldCollisionBoxes[index]) {
-                const collisionBox = emeraldCollisionBoxes[index];
-                const distance = playerPosition.distanceTo(collisionBox.position);
-                const collectionRadius = 5;
-                
-                if (distance < collectionRadius) {
-                    // Play collect sound
-                    if (emeraldCollectSound) {
-                        emeraldCollectSound.currentTime = 0; // Reset sound to start
-                        emeraldCollectSound.play().catch(error => {
-                            console.log("Audio play failed:", error);
-                        });
-                    }
+        // Animasi bounce pada counter
+        emeraldCounter.style.transform = 'scale(1.2)';
+        setTimeout(() => {
+            emeraldCounter.style.transform = 'scale(1)';
+        }, 200);
+    }
 
-                    // Rest of collection logic
-                    scene.remove(emerald);
-                    scene.remove(collisionBox);
-                    chaosEmeralds[index] = null;
-                    emeraldCollisionBoxes[index] = null;
-                    collectedEmeralds++;
-                    
-                    // Update emerald message
-                    const emeraldMsg = document.getElementById('emerald-message');
-                    if (emeraldMsg) {
-                        if (collectedEmeralds === TOTAL_EMERALDS) {
-                            emeraldMsg.innerText = "Selamat! Semua Chaos Emerald telah dikumpulkan!";
-                        } else {
-                            emeraldMsg.innerText = `Chaos Emerald: ${collectedEmeralds}/${TOTAL_EMERALDS}`;
-                        }
-                    }
+    // Update pesan emerald
+    const emeraldMsg = document.getElementById('emerald-message');
+    if (emeraldMsg) {
+        const remaining = TOTAL_EMERALDS - collectedEmeralds;
+        if (remaining > 0) {
+            emeraldMsg.innerText = `Kumpulkan ${remaining} Chaos Emerald lagi!`;
+            emeraldMsg.style.color = "#00ff00";
+            emeraldMsg.style.fontSize = "18px";
+        }
+    }
+}
 
-                    // Update emerald counter di kanan atas
-                    const emeraldCounter = document.getElementById('emerald-counter');
-                    if (emeraldCounter) {
-                        emeraldCounter.innerHTML = `💎 ${collectedEmeralds} / ${TOTAL_EMERALDS}`;
-                    }
-                    
-                    // Show collection message
-                    console.log(`Chaos Emerald collected! (${collectedEmeralds}/${TOTAL_EMERALDS})`);
-                    
-                    // Visual feedback with green flash
-                    const flashEffect = new THREE.PointLight(0x00ff00, 5, 100);
-                    flashEffect.position.copy(emerald.position);
-                    scene.add(flashEffect);
-                    
-                    // Remove flash effect after 500ms
-                    setTimeout(() => {
-                        scene.remove(flashEffect);
-                    }, 500);
-
-                    // Victory message when all emeralds are collected
-                    if (collectedEmeralds === TOTAL_EMERALDS) {
-                        console.log("Congratulations! All Chaos Emeralds collected!");
-                        // You could add additional victory effects here
-                    }
-                }
-            }
+function collectEmerald(emerald, index) {
+    console.log(`Collecting emerald ${index}!`);
+    
+    // Play sound effect
+    if (emeraldCollectSound) {
+        emeraldCollectSound.currentTime = 0;
+        emeraldCollectSound.volume = 0.6;
+        emeraldCollectSound.play().catch(error => {
+            console.log("Emerald collect sound failed:", error);
         });
     }
+    
+    // Simpan posisi untuk efek visual
+    const emeraldPosition = emerald.position.clone();
+    
+    // Remove emerald dari scene
+    scene.remove(emerald);
+    chaosEmeralds[index] = null;
+    collectedEmeralds++;
+    
+    // Update UI
+    updateEmeraldUI();
+    
+    // Efek visual
+    createCollectionEffects(emeraldPosition);
+    
+    // Cek apakah game selesai
+    if (collectedEmeralds >= TOTAL_EMERALDS) {
+        onGameComplete();
+    }
+}
+
+// Update the checkEmeraldCollection function
+function checkEmeraldCollection() {
+    if (collectedEmeralds >= TOTAL_EMERALDS) {
+        return; // Game sudah selesai
+    }
+    
+    const playerPosition = camera.position.clone();
+    const collectionRadius = 25; // Radius yang lebih besar untuk kemudahan
+    
+    // Update animasi emerald dan cek collection
+    for (let i = 0; i < chaosEmeralds.length; i++) {
+        const emerald = chaosEmeralds[i];
+        
+        if (emerald && emerald.parent) { // Pastikan emerald masih ada di scene
+            // Animasi emerald
+            updateEmeraldAnimation(emerald, i);
+            
+            // Cek jarak untuk collection
+            const emeraldPos = emerald.position.clone();
+            const distance = playerPosition.distanceTo(emeraldPos);
+            
+            if (distance < collectionRadius) {
+                collectEmerald(emerald, i);
+                break; // Kumpulkan satu emerald per frame
+            }
+        }
+    }
+}
+
+function createCollectionEffects(position) {
+    // Flash effect
+    const flashLight = new THREE.PointLight(0x00ff00, 15, 80);
+    flashLight.position.copy(position);
+    scene.add(flashLight);
+    
+    // Sparkle particles
+    const particleCount = 15;
+    const particles = [];
+    
+    for (let i = 0; i < particleCount; i++) {
+        const particle = new THREE.Mesh(
+            new THREE.SphereGeometry(0.3, 6, 6),
+            new THREE.MeshBasicMaterial({ 
+                color: new THREE.Color().setHSL(0.3 + Math.random() * 0.1, 1, 0.7),
+                emissive: 0x00ff00,
+                transparent: true,
+                opacity: 1
+            })
+        );
+        
+        particle.position.copy(position);
+        particle.userData.velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 20,
+            Math.random() * 15 + 5,
+            (Math.random() - 0.5) * 20
+        );
+        particle.userData.life = 1.0;
+        
+        scene.add(particle);
+        particles.push(particle);
+    }
+    
+    // Animate particles
+    const animateParticles = () => {
+        particles.forEach((particle, i) => {
+            if (particle.userData.life <= 0) return;
+            
+            // Update position
+            particle.position.add(particle.userData.velocity.clone().multiplyScalar(0.02));
+            particle.userData.velocity.y -= 0.5; // Gravity
+            
+            // Update life and opacity
+            particle.userData.life -= 0.02;
+            particle.material.opacity = particle.userData.life;
+            particle.scale.setScalar(particle.userData.life);
+            
+            // Remove when life is over
+            if (particle.userData.life <= 0) {
+                scene.remove(particle);
+                particles.splice(i, 1);
+            }
+        });
+        
+        if (particles.length > 0) {
+            requestAnimationFrame(animateParticles);
+        }
+    };
+    animateParticles();
+    
+    // Remove flash after delay
+    setTimeout(() => {
+        scene.remove(flashLight);
+    }, 300);
 }
 
 // Add this function after the existing functions
@@ -1873,6 +2002,7 @@ function checkCreepySoundTrigger() {
         };
 
         // Cek apakah player di area trigger
+
         const isInTriggerArea = (
             camera.position.x >= triggerArea.minX && 
             camera.position.x <= triggerArea.maxX &&
@@ -1903,6 +2033,15 @@ function checkCreepySoundTrigger() {
             isCreepySingingPlaying = false;
         }
         creepyTriggered = false;
+    }
+}
+
+// Update posisi collision box emerald agar selalu mengikuti emerald
+for (let i = 0; i < chaosEmeralds.length; i++) {
+    const emerald = chaosEmeralds[i];
+    const emeraldBox = emeraldCollisionBoxes[i];
+    if (emerald && emeraldBox) {
+        emeraldBox.position.copy(emerald.position);
     }
 }
     </script>
