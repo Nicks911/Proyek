@@ -1925,69 +1925,69 @@ function checkEmeraldCollection() {
 }
 
 function createCollectionEffects(position) {
-    // Flash effect
-    const flashLight = new THREE.PointLight(0x00ff00, 15, 80);
-    flashLight.position.copy(position);
-    scene.add(flashLight);
+    // // Flash effect
+    // const flashLight = new THREE.PointLight(0x00ff00, 15, 80);
+    // flashLight.position.copy(position);
+    // scene.add(flashLight);
     
-    // Sparkle particles
-    const particleCount = 15;
-    const particles = [];
+    // // Sparkle particles
+    // const particleCount = 15;
+    // const particles = [];
     
-    for (let i = 0; i < particleCount; i++) {
-        const particle = new THREE.Mesh(
-            new THREE.SphereGeometry(0.3, 6, 6),
-            new THREE.MeshBasicMaterial({ 
-                color: new THREE.Color().setHSL(0.3 + Math.random() * 0.1, 1, 0.7),
-                emissive: 0x00ff00,
-                transparent: true,
-                opacity: 1
-            })
-        );
+    // for (let i = 0; i < particleCount; i++) {
+    //     const particle = new THREE.Mesh(
+    //         new THREE.SphereGeometry(0.3, 6, 6),
+    //         new THREE.MeshBasicMaterial({ 
+    //             color: new THREE.Color().setHSL(0.3 + Math.random() * 0.1, 1, 0.7),
+    //             emissive: 0x00ff00,
+    //             transparent: true,
+    //             opacity: 1
+    //         })
+    //     );
         
-        particle.position.copy(position);
-        particle.userData.velocity = new THREE.Vector3(
-            (Math.random() - 0.5) * 20,
-            Math.random() * 15 + 5,
-            (Math.random() - 0.5) * 20
-        );
-        particle.userData.life = 1.0;
+    //     particle.position.copy(position);
+    //     particle.userData.velocity = new THREE.Vector3(
+    //         (Math.random() - 0.5) * 20,
+    //         Math.random() * 15 + 5,
+    //         (Math.random() - 0.5) * 20
+    //     );
+    //     particle.userData.life = 1.0;
         
-        scene.add(particle);
-        particles.push(particle);
-    }
+    //     scene.add(particle);
+    //     particles.push(particle);
+    // }
     
-    // Animate particles
-    const animateParticles = () => {
-        particles.forEach((particle, i) => {
-            if (particle.userData.life <= 0) return;
+    // // Animate particles
+    // const animateParticles = () => {
+    //     particles.forEach((particle, i) => {
+    //         if (particle.userData.life <= 0) return;
             
-            // Update position
-            particle.position.add(particle.userData.velocity.clone().multiplyScalar(0.02));
-            particle.userData.velocity.y -= 0.5; // Gravity
+    //         // Update position
+    //         particle.position.add(particle.userData.velocity.clone().multiplyScalar(0.02));
+    //         particle.userData.velocity.y -= 0.5; // Gravity
             
-            // Update life and opacity
-            particle.userData.life -= 0.02;
-            particle.material.opacity = particle.userData.life;
-            particle.scale.setScalar(particle.userData.life);
+    //         // Update life and opacity
+    //         particle.userData.life -= 0.02;
+    //         particle.material.opacity = particle.userData.life;
+    //         particle.scale.setScalar(particle.userData.life);
             
-            // Remove when life is over
-            if (particle.userData.life <= 0) {
-                scene.remove(particle);
-                particles.splice(i, 1);
-            }
-        });
+    //         // Remove when life is over
+    //         if (particle.userData.life <= 0) {
+    //             scene.remove(particle);
+    //             particles.splice(i, 1);
+    //         }
+    //     });
         
-        if (particles.length > 0) {
-            requestAnimationFrame(animateParticles);
-        }
-    };
-    animateParticles();
+    //     if (particles.length > 0) {
+    //         requestAnimationFrame(animateParticles);
+    //     }
+    // };
+    // animateParticles();
     
-    // Remove flash after delay
-    setTimeout(() => {
-        scene.remove(flashLight);
-    }, 300);
+    // // Remove flash after delay
+    // setTimeout(() => {
+    //     scene.remove(flashLight);
+    // }, 300);
 }
 
 // Add this function after the existing functions
