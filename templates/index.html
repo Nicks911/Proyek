@@ -117,6 +117,9 @@ let isCreepySingingPlaying = false;
 // Tambahkan di global variables (di atas)
 let creepyTriggered = false;
 
+// Tambahkan variabel global di atas
+let emeraldsLoaded = false;
+
 // Inisialisasi scene
         function init() {
             // Membuat scene
@@ -277,7 +280,7 @@ let creepyTriggered = false;
             loadOldBuildingModel();
             
             // Load Chaos Emerald model
-            loadChaosEmeraldModel();
+            // loadChaosEmeraldModel();
             initAudio();
         }
 
@@ -1988,7 +1991,6 @@ function checkCreepySoundTrigger() {
         };
 
         // Cek apakah player di area trigger
-
         const isInTriggerArea = (
             camera.position.x >= triggerArea.minX && 
             camera.position.x <= triggerArea.maxX &&
@@ -1999,6 +2001,12 @@ function checkCreepySoundTrigger() {
         // Jika masuk area dan belum pernah trigger
         if (isInTriggerArea && !creepyTriggered) {
             creepyTriggered = true;
+
+            // Load emeralds hanya sekali saat malam & trigger area
+            if (!emeraldsLoaded) {
+                loadChaosEmeraldModel();
+                emeraldsLoaded = true;
+            }
         }
 
         // Jika sudah pernah trigger dan sound belum main, play
@@ -2019,6 +2027,16 @@ function checkCreepySoundTrigger() {
             isCreepySingingPlaying = false;
         }
         creepyTriggered = false;
+        // Jika ingin emerald hilang saat siang:
+        if (emeraldsLoaded) {
+            chaosEmeralds.forEach(e => { if (e) scene.remove(e); });
+            emeraldCollisionBoxes.forEach(b => { if (b) scene.remove(b); });
+            chaosEmeralds = [];
+            emeraldCollisionBoxes = [];
+            emeraldsLoaded = false;
+            collectedEmeralds = 0;
+            updateEmeraldUI();
+        }
     }
 }
 
