@@ -1235,6 +1235,7 @@ for (let i = 0; i < chaosEmeralds.length; i++) {
 
 // Panggil checkEmeraldCollection() di akhir animate()
 checkEmeraldCollection();
+checkCreepySoundTrigger();
 
             renderer.render(scene, camera);
             
@@ -1979,83 +1980,128 @@ function createCollectionEffects(position) {
     animateParticles();
 }
 
-// Add this function after the existing functions
-function checkCreepySoundTrigger() {
-    if (isNight) {
-        // Perbaiki area trigger agar lebih luas dan mudah diaktifkan
-        const triggerArea = {
-            minX: -1200, // diperluas ke kiri
-            maxX: -300,  // diperluas ke kanan
-            minZ: -300,  // diperluas ke depan
-            maxZ: 300    // diperluas ke belakang
-        };
-
-        // Cek apakah player di area trigger
-        const isInTriggerArea = (
-            camera.position.x >= triggerArea.minX && 
-            camera.position.x <= triggerArea.maxX &&
-            camera.position.z >= triggerArea.minZ && 
-            camera.position.z <= triggerArea.maxZ
-        );
-
-        // Jika masuk area dan mode malam
-        if (isInTriggerArea) {
-            // Load emeralds hanya sekali
-            if (!emeraldsLoaded) {
-                console.log("Loading Chaos Emeralds...");
-                loadChaosEmeraldModel();
-                emeraldsLoaded = true;
-            }
-
-            // Play creepy sound jika belum dimainkan
-            if (!isCreepySingingPlaying && creepySinging) {
-                console.log("Playing creepy singing...");
-                creepySinging.loop = true;
-                creepySinging.volume = 0.3;
-                creepySinging.play().then(() => {
-                    isCreepySingingPlaying = true;
-                    console.log("Creepy singing started successfully");
-                }).catch(error => {
-                    console.log("Audio play failed:", error);
-                });
-            }
-            
-            creepyTriggered = true;
-        }
-    } else {
-        // Reset saat mode siang
-        if (isCreepySingingPlaying && creepySinging) {
-            creepySinging.pause();
-            creepySinging.currentTime = 0;
-            isCreepySingingPlaying = false;
-            console.log("Stopped creepy singing");
-        }
-        
-        // Reset flags
-        creepyTriggered = false;
-        
-        // Hapus emerald saat siang
-        if (emeraldsLoaded) {
-            console.log("Removing emeralds for day mode");
-            chaosEmeralds.forEach(e => { if (e) scene.remove(e); });
-            emeraldCollisionBoxes.forEach(b => { if (b) scene.remove(b); });
-            chaosEmeralds.length = 0;
-            emeraldCollisionBoxes.length = 0;
-            emeraldsLoaded = false;
-            collectedEmeralds = 0;
-            updateEmeraldUI();
-        }
+// Tambahkan setelah fungsi createCollectionEffects dan sebelum checkCreepySoundTrigger
+function onGameComplete() {
+    console.log("Game Complete! All emeralds collected!");
+    
+    // Stop creepy sound immediately
+    if (isCreepySingingPlaying && creepySinging) {
+        creepySinging.pause();
+        creepySinging.currentTime = 0;
+        isCreepySingingPlaying = false;
+        console.log("Stopped creepy singing - Game won!");
     }
+    
+    // Force change to day mode
+    isNight = false;
+    
+    // Update lighting to day
+    if (ambientLight) {
+        ambientLight.intensity = 0.5;
+    }
+    if (directionalLight) {
+        directionalLight.intensity = 0.8;
+    }
+    
+    // Change sky color to day
+    scene.background = new THREE.Color(0x87CEEB);
+    
+    // Turn off flashlight
+    if (flashlight) {
+        flashlight.intensity = 0;
+    }
+    
+    // Reset creepy trigger
+    creepyTriggered = false;
+    
+    // Show victory message
+    const emeraldMsg = document.getElementById('emerald-message');
+    if (emeraldMsg) {
+        emeraldMsg.innerText = "🏆 MENANG! Semua Chaos Emerald terkumpul! 🏆";
+        emeraldMsg.style.color = "#FFD700";
+        emeraldMsg.style.fontSize = "24px";
+    }
+    
+    console.log("Victory! Game completed and switched to day mode!");
 }
 
-// Update posisi collision box emerald agar selalu mengikuti emerald
-for (let i = 0; i < chaosEmeralds.length; i++) {
-    const emerald = chaosEmeralds[i];
-    const emeraldBox = emeraldCollisionBoxes[i];
-    if (emerald && emeraldBox) {
-        emeraldBox.position.copy(emerald.position);
-    }
-}
+        // Add this function after the existing functions
+        function checkCreepySoundTrigger() {
+            if (isNight) {
+                // Perbaiki area trigger agar lebih luas dan mudah diaktifkan
+                const triggerArea = {
+                    minX: -1200, // diperluas ke kiri
+                    maxX: -300,  // diperluas ke kanan
+                    minZ: -300,  // diperluas ke depan
+                    maxZ: 300    // diperluas ke belakang
+                };
+
+                // Cek apakah player di area trigger
+                const isInTriggerArea = (
+                    camera.position.x >= triggerArea.minX && 
+                    camera.position.x <= triggerArea.maxX &&
+                    camera.position.z >= triggerArea.minZ && 
+                    camera.position.z <= triggerArea.maxZ
+                );
+
+                // Jika masuk area dan mode malam
+                if (isInTriggerArea) {
+                    // Load emeralds hanya sekali
+                    if (!emeraldsLoaded) {
+                        console.log("Loading Chaos Emeralds...");
+                        loadChaosEmeraldModel();
+                        emeraldsLoaded = true;
+                    }
+
+                    // Play creepy sound jika belum dimainkan
+                    if (!isCreepySingingPlaying && creepySinging) {
+                        console.log("Playing creepy singing...");
+                        creepySinging.loop = true;
+                        creepySinging.volume = 0.3;
+                        creepySinging.play().then(() => {
+                            isCreepySingingPlaying = true;
+                            console.log("Creepy singing started successfully");
+                        }).catch(error => {
+                            console.log("Audio play failed:", error);
+                        });
+                    }
+                    
+                    creepyTriggered = true;
+                }
+            } else {
+                // Reset saat mode siang
+                if (isCreepySingingPlaying && creepySinging) {
+                    creepySinging.pause();
+                    creepySinging.currentTime = 0;
+                    isCreepySingingPlaying = false;
+                    console.log("Stopped creepy singing");
+                }
+                
+                // Reset flags
+                creepyTriggered = false;
+                
+                // Hapus emerald saat siang
+                if (emeraldsLoaded) {
+                    console.log("Removing emeralds for day mode");
+                    chaosEmeralds.forEach(e => { if (e) scene.remove(e); });
+                    emeraldCollisionBoxes.forEach(b => { if (b) scene.remove(b); });
+                    chaosEmeralds.length = 0;
+                    emeraldCollisionBoxes.length = 0;
+                    emeraldsLoaded = false;
+                    collectedEmeralds = 0;
+                    updateEmeraldUI();
+                }
+            }
+        }
+
+        // Update posisi collision box emerald agar selalu mengikuti emerald
+        for (let i = 0; i < chaosEmeralds.length; i++) {
+            const emerald = chaosEmeralds[i];
+            const emeraldBox = emeraldCollisionBoxes[i];
+            if (emerald && emeraldBox) {
+                emeraldBox.position.copy(emerald.position);
+            }
+        }
     </script>
 </body>
 </html>
