@@ -120,6 +120,11 @@ let creepyTriggered = false;
 // Tambahkan variabel global di atas
 let emeraldsLoaded = false;
 
+// Tambahkan di bagian variabel global
+let horrorImages = [];
+let horrorImagesLoaded = false;
+let firstEmeraldCollected = false;
+
 // Inisialisasi scene
         function init() {
             // Membuat scene
@@ -282,6 +287,9 @@ let emeraldsLoaded = false;
             // Load Chaos Emerald model
             // loadChaosEmeraldModel();
             initAudio();
+            
+            // Load horror images
+            loadHorrorImages();
         }
 
         function createFlashlight() {
@@ -1887,6 +1895,16 @@ function collectEmerald(emerald, index) {
     chaosEmeralds[index] = null;
     collectedEmeralds++;
     
+    // **TRIGGER HORROR IMAGE UNTUK EMERALD PERTAMA**
+    if (collectedEmeralds === 1 && !firstEmeraldCollected) {
+        firstEmeraldCollected = true;
+        console.log("First emerald collected - triggering horror image!");
+        setTimeout(() => {
+            showRandomHorrorImage();
+        }, 1000); // Delay 1 detik setelah mengambil emerald
+   
+    }
+    
     // Update UI
     updateEmeraldUI();
     
@@ -2102,6 +2120,50 @@ function onGameComplete() {
                 emeraldBox.position.copy(emerald.position);
             }
         }
+
+function showRandomHorrorImage() {
+    if (!horrorImagesLoaded || horrorImages.length === 0) return;
+    
+    // Pilih gambar random
+    const randomIndex = Math.floor(Math.random() * horrorImages.length);
+    const horrorTexture = horrorImages[randomIndex];
+    
+    // Buat plane untuk menampilkan gambar
+    const geometry = new THREE.PlaneGeometry(20, 15);
+    const material = new THREE.MeshBasicMaterial({ 
+        map: horrorTexture, 
+        transparent: true,
+        opacity: 0.9
+    });
+    const horrorPlane = new THREE.Mesh(geometry, material);
+    
+    // Posisikan di depan player
+    const playerPos = camera.position.clone();
+    const direction = new THREE.Vector3();
+    camera.getWorldDirection(direction);
+    
+    horrorPlane.position.copy(playerPos);
+    horrorPlane.position.add(direction.multiplyScalar(10));
+    horrorPlane.position.y += 5;
+    
+    // Orientasi menghadap player
+    horrorPlane.lookAt(camera.position);
+    
+    scene.add(horrorPlane);
+    
+    console.log("Horror image appeared!");
+    
+    // Hilangkan setelah 3 detik
+    setTimeout(() => {
+        scene.remove(horrorPlane);
+        console.log("Horror image disappeared");
+    }, 3000);
+    
+    // Efek suara (opsional)
+    // if (horrorSound) {
+    //     horrorSound.play();
+    // }
+}
     </script>
 </body>
 </html>
