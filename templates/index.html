@@ -31,8 +31,8 @@
     <div id="compass" style="position: absolute; top: 10px; left: 10px; color: white; font-family: monospace; background-color: rgba(0, 0, 0, 0.5); padding: 5px; border-radius: 5px;">
   Direction: -
 </div>
-    <div id="emerald-message" style="position: absolute; top: 60px; left: 10px; color: #00ff00; font-family: monospace; background: rgba(0,0,0,0.7); padding: 8px 16px; border-radius: 5px; font-size: 18px; z-index: 10;">
-  Kumpulkan 10 Chaos Emerald untuk menang!
+    <div id="emerald-message" style="position: absolute; top: 60px; left: 10px; color: #ff0000; font-family: monospace; background: rgba(0,0,0,0.7); padding: 8px 16px; border-radius: 5px; font-size: 18px; z-index: 10;">
+   Collect All Emeralds
 </div>
     <!-- Tambahkan di dalam <body>, setelah elemen lain -->
 <div id="emerald-counter" style="position: absolute; top: 20px; right: 30px; color: #00ff00; font-family: monospace; background: rgba(0,0,0,0.7); padding: 10px 18px; border-radius: 8px; font-size: 22px; z-index: 20; text-align: right;">
@@ -124,6 +124,12 @@ let emeraldsLoaded = false;
 let horrorImages = [];
 let horrorImagesLoaded = false;
 let firstEmeraldCollected = false;
+
+// Tambahkan variabel global untuk tracking first time entering car
+let firstTimeEnteringCar = true;
+
+// Tambahkan variabel global untuk status ghost
+let ghostSpawned = false;
 
 // Inisialisasi scene
         function init() {
@@ -283,6 +289,7 @@ let firstEmeraldCollected = false;
             loadFarmHouseModel();
             loadWelcomeBoardModel();
             loadOldBuildingModel();
+            // loadGhostModel(); // ← comment out or delete this line
             
             // Load Chaos Emerald model
             // loadChaosEmeraldModel();
@@ -405,10 +412,10 @@ let firstEmeraldCollected = false;
         // Fungsi untuk membuat batas map (invisible walls)
         function createMapBoundaries() {
             // Karena ground 2500 x 1000, setengahnya:
-            const mapWidth = 1250;  // setengah lebar ground (X)
-            const mapHeight = 400;  // setengah panjang ground (Z)
-            const wallHeight = 100;
-            const wallThickness = 10;
+            const mapWidth = 1250  // setengah lebar ground (X)
+            const mapHeight = 400  // setengah panjang ground (Z)
+            const wallHeight = 100
+            const wallThickness = 10
 
             // Buat material transparan untuk dinding
             const wallMaterial = new THREE.MeshBasicMaterial({
@@ -787,71 +794,75 @@ let firstEmeraldCollected = false;
         function toggleNightMode() {
             if (isNight) {
                 // Mode malam: background gelap dan intensitas cahaya sangat rendah
-                scene.background = new THREE.Color(0x000005); // Hampir hitam total
-                ambientLight.intensity = 0.05; // Cahaya ambient sangat minim
-                directionalLight.intensity = 0.1; // Cahaya directional juga minim
-                directionalLight.position.set(-100, 50, -50); // Ubah posisi matahari untuk malam
+                scene.background = new THREE.Color(0x000001); // Make it even darker
+                ambientLight.intensity = 0.02; // Even less ambient light
+                directionalLight.intensity = 0.05; // Much less directional light
+                directionalLight.position.set(-100, 50, -50);
                 
-                // Tambahkan fog untuk efek horror
-                scene.fog = new THREE.FogExp2(0x000000, 0.0007); // Kurangi densitas fog
+                // Make fog MUCH thicker for horror atmosphere
+                scene.fog = new THREE.FogExp2(0x000000, 0.003); // Increased from 0.0007 to 0.003
                 
-                // Turn on all streetlamp lights
+                // Turn on all streetlamp lights but make them dimmer and flickering
                 if (window.streetLampLights) {
                     window.streetLampLights.forEach(light => {
                         light.visible = true;
                         light.castShadow = true;
+                        light.intensity = 0.8; // Dimmer streetlights
                     });
                 }
                 
-                // Make all lamp bulbs glow
+                // Make all lamp bulbs glow but dimmer
                 scene.traverse(object => {
                     if (object.isMesh && object.userData.isLampBulb) {
                         if (object.material) {
-                            object.material.emissiveIntensity = 1.0;
+                            object.material.emissiveIntensity = 0.6; // Dimmer glow
                         }
                     }
                 });
                 
-                // Perbarui pencahayaan bulan
+                // Dim moon lighting
                 if (moon) {
                     moon.traverse((child) => {
                         if (child.isMesh) {
-                            child.material.emissiveIntensity = 1.0;
+                            child.material.emissiveIntensity = 0.5; // Dimmer moon
                         }
                     });
-                    // Aktifkan moonLight
                     if (moon.userData.moonLight) {
-                        moon.userData.moonLight.intensity = 0.8;
+                        moon.userData.moonLight.intensity = 0.3; // Much dimmer moonlight
                     }
                 }
                 
-                // Perbarui shadow settings untuk malam hari
-                renderer.shadowMap.darkness = 0.8;
-                directionalLight.shadow.bias = -0.0005;
-                directionalLight.shadow.normalBias = 0.02;
+                // Enhanced shadow settings for horror
+                renderer.shadowMap.darkness = 0.95; // Much darker shadows
+                directionalLight.shadow.bias = -0.001;
+                directionalLight.shadow.normalBias = 0.03;
                 
-                // Perbarui flashlight shadow settings
+                // Enhanced flashlight shadow settings
                 [flashlight, leftHeadlight, rightHeadlight].forEach(light => {
                     if (light) {
-                        light.shadow.bias = -0.0005;
-                        light.shadow.normalBias = 0.02;
-                        light.shadow.radius = 4; // Membuat shadow lebih lembut
-                        light.penumbra = 0.5; // Membuat tepi cahaya lebih lembut
+                        light.shadow.bias = -0.001;
+                        light.shadow.normalBias = 0.03;
+                        light.shadow.radius = 8; // Softer, more ominous shadows
+                        light.penumbra = 0.8; // Much softer light edges
                     }
                 });
                 
-                // Check if player is in trigger area when switching to night
                 checkCreepySoundTrigger();
+                
+                if (firstEmeraldCollected && !ghostSpawned) {
+                    console.log("Spawning ghost - night mode + emerald collected!");
+                    loadGhostModel();
+                    ghostSpawned = true;
+                }
                 
             } else {
                 // Kembali ke mode siang: background dan intensitas normal
                 scene.background = new THREE.Color(0x87CEEB);
                 ambientLight.intensity = 0.5;
                 directionalLight.intensity = 0.8;
-                directionalLight.position.set(100, 100, 50); // Ubah posisi matahari untuk siang
+                directionalLight.position.set(100, 100, 50);
                 scene.fog = null;
                 
-                // Turn off all streetlamp lights
                 if (window.streetLampLights) {
                     window.streetLampLights.forEach(light => {
                         light.visible = false;
@@ -859,7 +870,6 @@ let firstEmeraldCollected = false;
                     });
                 }
                 
-                // Turn off lamp bulb glow
                 scene.traverse(object => {
                     if (object.isMesh && object.userData.isLampBulb) {
                         if (object.material) {
@@ -868,20 +878,17 @@ let firstEmeraldCollected = false;
                     }
                 });
                 
-                // Matikan pencahayaan bulan
                 if (moon) {
                     moon.traverse((child) => {
                         if (child.isMesh) {
                             child.material.emissiveIntensity = 0.0;
                         }
                     });
-                    // Nonaktifkan moonLight
                     if (moon.userData.moonLight) {
                         moon.userData.moonLight.intensity = 0;
                     }
                 }
                 
-                // Reset shadow settings untuk siang hari
                 renderer.shadowMap.darkness = 0.3;
                 directionalLight.shadow.bias = -0.0001;
                 directionalLight.shadow.normalBias = 0.01;
@@ -900,194 +907,117 @@ let firstEmeraldCollected = false;
         
         // Fungsi untuk efek flicker pada flashlight (opsional)
         function flickerFlashlight() {
-            if (isFlashlightOn && Math.random() < 0.05) {
-                const originalIntensity = flashlight.intensity;
-                flashlight.intensity = originalIntensity * (0.5 + Math.random() * 0.5);
+            if (!isFlashlightOn) return;
+            
+            // Horror flickering - reduced frequency
+            if (isNight && Math.random() < 0.03) { // Reduced from 0.12 to 0.03 (75% less flickering)
+                const originalIntensity = 100;
+                
+                // More dramatic intensity variations
+                const flickerIntensity = originalIntensity * (0.1 + Math.random() * 0.4);
+                flashlight.intensity = flickerIntensity;
+                
+                // Also flicker headlights when driving
+                if (isDriving) {
+                    leftHeadlight.intensity = flickerIntensity;
+                    rightHeadlight.intensity = flickerIntensity;
+                }
+                
+                // Random flicker duration for more horror effect
+                const flickerDuration = 30 + Math.random() * 150;
+                
                 setTimeout(() => {
-                    flashlight.intensity = 100; // Restore ke nilai original dari createFlashlight()
+                    flashlight.intensity = originalIntensity;
+                    if (isDriving) {
+                        leftHeadlight.intensity = 100;
+                        rightHeadlight.intensity = 100;
+                    }
+                }, flickerDuration);
+                
+                // Occasional complete blackout for maximum horror (reduced frequency)
+                if (Math.random() < 0.01) { // Reduced from 0.03 to 0.01
+                    flashlight.intensity = 0;
+                    if (isDriving) {
+                        leftHeadlight.intensity = 0;
+                        rightHeadlight.intensity = 0;
+                    }
+                    
+                    setTimeout(() => {
+                        flashlight.intensity = originalIntensity;
+                        if (isDriving) {
+                            leftHeadlight.intensity = 100;
+                            rightHeadlight.intensity = 100;
+                        }
+                    }, 200 + Math.random() * 500); // Blackout for 200-700ms
+                }
+            } else if (!isNight && Math.random() < 0.005) { // Reduced from 0.02 to 0.005
+                const originalIntensity = 100;
+                flashlight.intensity = originalIntensity * (0.7 + Math.random() * 0.3);
+                
+                setTimeout(() => {
+                    flashlight.intensity = originalIntensity;
                 }, 50 + Math.random() * 100);
             }
         }
 
-        // Fungsi untuk mendeteksi collision
-        function checkCollision(position, radius) {
-            // Cek untuk setiap collision object
-            for (const object of collisionObjects) {
-                // Dapatkan bounding box dari objek
-                const bbox = new THREE.Box3().setFromObject(object);
-                
-                // Sphere-Box collision detection
-                // Dapatkan point terdekat pada bbox ke position
-                const closestPoint = new THREE.Vector3().copy(position);
-                
-                // Clamp closestPoint ke dalam bbox
-                closestPoint.x = Math.max(bbox.min.x, Math.min(bbox.max.x, closestPoint.x));
-                closestPoint.y = Math.max(bbox.min.y, Math.min(bbox.max.y, closestPoint.y));
-                closestPoint.z = Math.max(bbox.min.z, Math.min(bbox.max.z, closestPoint.z));
-                
-                // Hitung jarak antara position dan closestPoint
-                const distance = position.distanceTo(closestPoint);
-                
-                // Jika jarak kurang dari radius, artinya terjadi collision
-                if (distance < radius) {
-                    return {
-                        collision: true,
-                        object: object,
-                        distance: distance,
-                        normal: new THREE.Vector3().subVectors(position, closestPoint).normalize()
-                    };
-                }
-            }
-            
-            // Tidak ada collision
-            return { collision: false };
-        }
-
-        // Misal: cek collision berdasarkan jarak minimal dari setiap vertex ke posisi tertentu (misal, playerPosition)
-        function checkCollisionPerVertex(mesh, playerPosition, collisionDistance) {
-            // Pastikan geometry sudah di-update dan di-bake world matrix dari mesh
-            mesh.updateMatrixWorld();
-            const geometry = mesh.geometry;
-            // Dapatkan array posisi vertex
-            const positions = geometry.attributes.position.array;
-            
-            // Buat vector temporary untuk transformasi
-            const vertexWorld = new THREE.Vector3();
-            for (let i = 0; i < positions.length; i += 3) {
-                vertexWorld.set(positions[i], positions[i+1], positions[i+2]);
-                // Transform ke koordinat dunia
-                vertexWorld.applyMatrix4(mesh.matrixWorld);
-                
-                // Lakukan pengecekan jarak antara vertex dengan playerPosition
-                if (vertexWorld.distanceTo(playerPosition) < collisionDistance) {
-                    return true; // Collision terdeteksi
-                }
-            }
-            return false;
-        }
-
-        // Fungsi untuk memindahkan karakter dengan collision
-        function moveWithCollision(moveVector) {
-            // Posisi saat ini
-            const currentPosition = camera.position.clone();
-            
-            // Posisi rencana setelah bergerak
-            const plannedPosition = currentPosition.clone().add(moveVector);
-            
-            // Cek collision
-            const result = checkCollision(plannedPosition, playerRadius);
-            
-            if (result.collision) {
-                // Jika terjadi collision, geser posisi keluar dari collision
-                const pushDistance = playerRadius - result.distance + 0.1; // Sedikit ekstra untuk safety
-                const pushVector = result.normal.multiplyScalar(pushDistance);
-                
-                // Tambahkan pushVector ke planned position
-                plannedPosition.add(pushVector);
-                
-                // Update moveVector berdasarkan new planned position
-                moveVector.subVectors(plannedPosition, currentPosition);
-                
-                // Reset Y value agar player tidak terbang/terbenam
-                moveVector.y = 0;
-            }
-            
-            // Terapkan move vector ke posisi kamera
-            camera.position.add(moveVector);
-        }
-
-        // Fungsi untuk mengecek collision mobil dengan objek lain
-function checkCarCollisions(newPosition) {
-    // Buat temporary box untuk simulasi posisi baru mobil
-    const tempBox = new THREE.Box3();
-    if (carCollisionBox) {
-        tempBox.copy(new THREE.Box3().setFromObject(carCollisionBox));
-        
-        // Hitung offset dari posisi saat ini ke posisi baru
-        const offsetX = newPosition.x - carModel.position.x;
-        const offsetY = newPosition.y - carModel.position.y;
-        const offsetZ = newPosition.z - carModel.position.z;
-        
-        // Pindahkan box ke posisi baru yang direncanakan
-        tempBox.min.x += offsetX;
-        tempBox.min.y += offsetY;
-        tempBox.min.z += offsetZ;
-        tempBox.max.x += offsetX;
-        tempBox.max.y += offsetY;
-        tempBox.max.z += offsetZ;
-        
-        // Cek collision dengan semua objek
-        for (const object of collisionObjects) {
-            // Skip collision check dengan collision box mobil sendiri
-            if (object === carCollisionBox) continue;
-            
-            const objectBox = new THREE.Box3().setFromObject(object);
-            if (tempBox.intersectsBox(objectBox)) {
-                return true; // Collision terdeteksi
-            }
-        }
-    }
-    return false; // Tidak ada collision
-}
-
+        // FIX CAR MOVEMENT - Update the animate function car driving section
         function animate() {
             requestAnimationFrame(animate);
             
             const time = performance.now();
             const delta = (time - prevTime) / 1000;
+            
+            // Add flickering effects
+            flickerFlashlight();
+            flickerStreetLights();
 
             if (isDriving && carModel) {
-                // Ambil arah depan dan kanan dari kamera (hanya XZ)
-                const forward = new THREE.Vector3();
-                camera.getWorldDirection(forward);
-                forward.y = 0;
-                forward.normalize();
-                const right = new THREE.Vector3();
-                right.crossVectors(forward, camera.up).normalize();
+                // FIXED CAR MOVEMENT - Use car's forward direction instead of camera direction
+                const carForward = new THREE.Vector3(0, 0, 1).applyEuler(carModel.rotation).normalize();
+                const carRight = new THREE.Vector3(1, 0, 0).applyEuler(carModel.rotation).normalize();
 
-                // WASD untuk arah relatif kamera
+                // WASD for car movement relative to car's orientation
                 let driveDirection = new THREE.Vector3();
-                if (moveForward) driveDirection.add(forward);
-                if (moveBackward) driveDirection.sub(forward);
-                if (moveLeft) driveDirection.sub(right);
-                if (moveRight) driveDirection.add(right);
+                if (moveForward) driveDirection.add(carForward);
+                if (moveBackward) driveDirection.sub(carForward);
+                if (moveLeft) driveDirection.sub(carRight);
+                if (moveRight) driveDirection.add(carRight);
                 driveDirection.normalize();
 
-                // Hitung posisi yang direncanakan
+                // Calculate planned position
                 const plannedPosition = carModel.position.clone().addScaledVector(driveDirection, carSpeed * delta);
 
-                // Cek collision sebelum memindahkan mobil
+                // Check collision before moving car
                 if (!checkCarCollisions(plannedPosition)) {
-                    // Tidak ada collision, update posisi mobil
+                    // No collision, update car position
                     carModel.position.copy(plannedPosition);
 
-                    // Update posisi collision box mobil
+                    // Update car collision box position
                     if (carCollisionBox) {
                         carCollisionBox.position.copy(carModel.position);
                     }
                 } else {
-                    // Ada collision, mobil tidak bergerak
+                    // Collision detected, car doesn't move
                     console.log("Car collision detected!");
                 }
 
-                // --- Tambahkan rotasi mobil saat belok ---
-                // Hanya rotasi jika ada input kiri/kanan
+                // Add car rotation when turning
                 if (moveLeft || moveRight) {
-                    // Tentukan arah rotasi: kiri negatif, kanan positif
+                    // Determine turn direction: left negative, right positive
                     let turnDirection = 0;
                     if (moveLeft) turnDirection -= 1;
                     if (moveRight) turnDirection += 1;
 
-                    // Atur kecepatan rotasi (radian per detik)
-                    const turnSpeed = 1.5; // semakin besar semakin cepat belok
+                    // Set rotation speed (radians per second)
+                    const turnSpeed = 1.5; // higher value = faster turning
 
-                    // Update rotasi Y mobil
+                    // Update car Y rotation
                     carModel.rotation.y -= turnDirection * turnSpeed * delta;
                 }
 
                 updateCarCamera();
             } else {
-                // Mode berjalan: update rotasi dan posisi kamera berdasarkan input mouse dan collision (kode existing Anda)
+                // Walking mode: update camera rotation and position based on mouse input and collision
                 if (mouseEnabled) {
                     mouseVelocity.x *= mouseDamping;
                     mouseVelocity.y *= mouseDamping;
@@ -1100,7 +1030,7 @@ function checkCarCollisions(newPosition) {
                     camera.rotation.y = cameraRotation.y;
                 }
                 
-                // Update pergerakan player dan collision
+                // Update player movement and collision
                 let moveDirection = new THREE.Vector3();
                 if (moveForward) moveDirection.z += 1;
                 if (moveBackward) moveDirection.z -= 1;
@@ -1218,6 +1148,13 @@ function checkCarCollisions(newPosition) {
                 moon.rotation.y += 0.001;
             }
             
+            // Animate ghost floating effect
+            if (window.ghostModel) {
+                const time = performance.now() * 0.001;
+                window.ghostModel.position.y = 5 + Math.sin(time * 2) * 3; // Floating up and down
+                window.ghostModel.rotation.y += 0.005; // Slow rotation
+            }
+            
             updateCompass();
             
             prevTime = time;
@@ -1301,9 +1238,6 @@ checkCreepySoundTrigger();
             // Update tampilan kompas
             document.getElementById('compass').innerText = 'Direction: ' + cardinal;
         }
-
-        // Tambahkan variabel global untuk tracking first time entering car
-        let firstTimeEnteringCar = true;
 
         // Update fungsi enterCar()
         function enterCar() {
@@ -1765,6 +1699,38 @@ async function loadOldBuildingModel() {
     }
 }
 
+async function loadGhostModel() {
+    try {
+        const loader = new GLTFLoader();
+        const gltf = await loader.loadAsync('/model/low_poly_ghost_character.glb');
+        const ghost = gltf.scene;
+        // Sesuaikan posisi, skala dan rotasi
+        ghost.position.set(-775, 10, -100);
+        ghost.scale.set(1, 1, 1);
+        ghost.rotation.y = Math.PI / 4;
+
+        ghost.traverse(child => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                if (child.material) {
+                    child.material.transparent = true;
+                    child.material.opacity = 0.8;
+                    child.material.emissive = new THREE.Color(0x444444);
+                    child.material.emissiveIntensity = 0.2;
+                }
+            }
+        });
+
+        scene.add(ghost);
+        window.ghostModel = ghost;
+        createCollisionBox(ghost, 0, 5, 0, 0.8, 1, 0.8);
+        console.log('Ghost model loaded');
+    } catch (error) {
+        console.error('Failed to load ghost model:', error);
+    }
+}
+
 // Add this function to load the Chaos Emerald
 async function loadChaosEmeraldModel() {
     try {
@@ -1868,8 +1834,8 @@ function updateEmeraldUI() {
     if (emeraldMsg) {
         const remaining = TOTAL_EMERALDS - collectedEmeralds;
         if (remaining > 0) {
-            emeraldMsg.innerText = `Kumpulkan ${remaining} Chaos Emerald lagi!`;
-            emeraldMsg.style.color = "#00ff00";
+            emeraldMsg.innerText = `${remaining} Chaos Emerald Remaining`;
+            emeraldMsg.style.color = "#ff0000";
             emeraldMsg.style.fontSize = "18px";
         }
     }
@@ -1901,8 +1867,13 @@ function collectEmerald(emerald, index) {
         console.log("First emerald collected - triggering horror image!");
         setTimeout(() => {
             showRandomHorrorImage();
+            // if it's already night, spawn the ghost now
+            if (isNight && !ghostSpawned) {
+                console.log("Spawning ghost - first emerald + night mode!");
+                loadGhostModel();
+                ghostSpawned = true;
+            }
         }, 1000); // Delay 1 detik setelah mengambil emerald
-
     }
     
     // Update UI
@@ -2043,167 +2014,175 @@ function onGameComplete() {
     console.log("Victory! Game completed and switched to day mode!");
 }
 
-        // Add this function after the existing functions
-        function checkCreepySoundTrigger() {
-            if (isNight) {
-                // Perbaiki area trigger agar lebih luas dan mudah diaktifkan
-                const triggerArea = {
-                    minX: -1200, // diperluas ke kiri
-                    maxX: -300,  // diperluas ke kanan
-                    minZ: -300,  // diperluas ke depan
-                    maxZ: 300    // diperluas ke belakang
-                };
+// Add this function after the existing functions
+function checkCreepySoundTrigger() {
+    if (isNight) {
+        // Perbaiki area trigger agar lebih luas dan mudah diaktifkan
+        const triggerArea = {
+            minX: -1200, // diperluas ke kiri
+            maxX: -300,  // diperluas ke kanan
+            minZ: -300,  // diperluas ke depan
+            maxZ: 300    // diperluas ke belakang
+        };
 
-                // Cek apakah player di area trigger
-                const isInTriggerArea = (
-                    camera.position.x >= triggerArea.minX && 
-                    camera.position.x <= triggerArea.maxX &&
-                    camera.position.z >= triggerArea.minZ && 
-                    camera.position.z <= triggerArea.maxZ
-                );
+        // Cek apakah player di area trigger
+        const isInTriggerArea = (
+            camera.position.x >= triggerArea.minX && 
+            camera.position.x <= triggerArea.maxX &&
+            camera.position.z >= triggerArea.minZ && 
+            camera.position.z <= triggerArea.maxZ
+        );
 
-                // Jika masuk area dan mode malam
-                if (isInTriggerArea) {
-                    // Load emeralds hanya sekali
-                    if (!emeraldsLoaded) {
-                        console.log("Loading Chaos Emeralds...");
-                        loadChaosEmeraldModel();
-                        emeraldsLoaded = true;
-                    }
-
-                    // Play creepy sound jika belum dimainkan
-                    if (!isCreepySingingPlaying && creepySinging) {
-                        console.log("Playing creepy singing...");
-                        creepySinging.loop = true;
-                        creepySinging.volume = 0.3;
-                        creepySinging.play().then(() => {
-                            isCreepySingingPlaying = true;
-                            console.log("Creepy singing started successfully");
-                        }).catch(error => {
-                            console.log("Audio play failed:", error);
-                        });
-                    }
-                    
-                    creepyTriggered = true;
-                }
-            } else {
-                // Reset saat mode siang
-                if (isCreepySingingPlaying && creepySinging) {
-                    creepySinging.pause();
-                    creepySinging.currentTime = 0;
-                    isCreepySingingPlaying = false;
-                    console.log("Stopped creepy singing");
-                }
-                
-                // Reset flags
-                creepyTriggered = false;
-                
-                // Hapus emerald saat siang
-                if (emeraldsLoaded) {
-                    console.log("Removing emeralds for day mode");
-                    chaosEmeralds.forEach(e => { if (e) scene.remove(e); });
-                    emeraldCollisionBoxes.forEach(b => { if (b) scene.remove(b); });
-                    chaosEmeralds.length = 0;
-                    emeraldCollisionBoxes.length = 0;
-                    emeraldsLoaded = false;
-                    collectedEmeralds = 0;
-                    updateEmeraldUI();
-                }
+        // Jika masuk area dan mode malam
+        if (isInTriggerArea) {
+            // Load emeralds hanya sekali
+            if (!emeraldsLoaded) {
+                console.log("Loading Chaos Emeralds...");
+                loadChaosEmeraldModel();
+                emeraldsLoaded = true;
             }
-        }
 
-        // Update posisi collision box emerald agar selalu mengikuti emerald
-        for (let i = 0; i < chaosEmeralds.length; i++) {
-            const emerald = chaosEmeralds[i];
-            const emeraldBox = emeraldCollisionBoxes[i];
-            if (emerald && emeraldBox) {
-                emeraldBox.position.copy(emerald.position);
+            // Play creepy sound jika belum dimainkan
+            if (!isCreepySingingPlaying && creepySinging) {
+                console.log("Playing creepy singing...");
+                creepySinging.loop = true;
+                creepySinging.volume = 0.3;
+                creepySinging.play().then(() => {
+                    isCreepySingingPlaying = true;
+                    console.log("Creepy singing started successfully");
+                }).catch(error => {
+                    console.log("Audio play failed:", error);
+                });
             }
+            
+            creepyTriggered = true;
         }
+    } else {
+        // Reset saat mode siang
+        if (isCreepySingingPlaying && creepySinging) {
+            creepySinging.pause();
+            creepySinging.currentTime = 0;
+            isCreepySingingPlaying = false;
+            console.log("Stopped creepy singing");
+        }
+        
+        // Reset flags
+        creepyTriggered = false;
+        
+        // Hapus emerald saat siang
+        if (emeraldsLoaded) {
+            console.log("Removing emeralds for day mode");
+            chaosEmeralds.forEach(e => { if (e) scene.remove(e); });
+            emeraldCollisionBoxes.forEach(b => { if (b) scene.remove(b); });
+            chaosEmeralds.length = 0;
+            emeraldCollisionBoxes.length = 0;
+            emeraldsLoaded = false;
+            collectedEmeralds = 0;
+            updateEmeraldUI();
+        }
+    }
+}
+
+// Missing collision functions
+function moveWithCollision(moveVector) {
+    const currentPosition = camera.position.clone();
+    const newPosition = currentPosition.clone().add(moveVector);
+    
+    // Simple collision detection
+    let collision = false;
+    for (let i = 0; i < collisionObjects.length; i++) {
+        const obj = collisionObjects[i];
+        const distance = newPosition.distanceTo(obj.position);
+        if (distance < playerRadius + 10) { // Add some buffer
+            collision = true;
+            break;
+        }
+    }
+    
+    if (!collision) {
+        camera.position.copy(newPosition);
+    }
+}
+
+function checkCarCollisions(plannedPosition) {
+    for (let i = 0; i < collisionObjects.length; i++) {
+        const obj = collisionObjects[i];
+        const distance = plannedPosition.distanceTo(obj.position);
+        if (distance < 30) { // Car collision radius
+            return true; // Collision detected
+        }
+    }
+    return false; // No collision
+}
+
+// Add flickering to streetlights for extra horror atmosphere
+function flickerStreetLights() {
+    if (!isNight || !window.streetLampLights) return;
+    
+    window.streetLampLights.forEach(light => {
+        if (Math.random() < 0.08) { // 8% chance each frame
+            const originalIntensity = 1.5;
+            light.intensity = originalIntensity * (0.2 + Math.random() * 0.6);
+            
+            setTimeout(() => {
+                light.intensity = originalIntensity;
+            }, 100 + Math.random() * 300);
+        }
+    });
+}
+
+// Missing horror image functions
+function loadHorrorImages() {
+    // Initialize horror images array
+    horrorImages = [
+        '/2dmodel/photo0.jpg',
+        '/2dmodel/photo1.jpg',
+        '/2dmodel/photo2.jpg',
+        '/2dmodel/photo3.jpg'
+    ];
+    horrorImagesLoaded = true;
+    console.log('Horror images loaded');
+}
 
 function showRandomHorrorImage() {
     if (!horrorImagesLoaded || horrorImages.length === 0) return;
     
-    // Pilih gambar random dari photo0.jpg sampai photo9.jpg
     const randomIndex = Math.floor(Math.random() * horrorImages.length);
-    const horrorTexture = horrorImages[randomIndex];
+    const imageUrl = horrorImages[randomIndex];
     
-    // Buat plane untuk menampilkan gambar
-    const geometry = new THREE.PlaneGeometry(20, 15);
-    const material = new THREE.MeshBasicMaterial({ 
-        map: horrorTexture, 
-        transparent: true,
-        opacity: 0.9
-    });
-    const horrorPlane = new THREE.Mesh(geometry, material);
+    // Create horror image overlay
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100vw';
+    overlay.style.height = '100vh';
+    overlay.style.backgroundColor = 'rgba(0,0,0,0.9)';
+    overlay.style.zIndex = '9999';
+    overlay.style.display = 'flex';
+    overlay.style.justifyContent = 'center';
+    overlay.style.alignItems = 'center';
     
-    // Posisikan di depan player
-    const playerPos = camera.position.clone();
-    const direction = new THREE.Vector3();
-    camera.getWorldDirection(direction);
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.style.maxWidth = '80%';
+    img.style.maxHeight = '80%';
+    img.style.objectFit = 'contain';
     
-    horrorPlane.position.copy(playerPos);
-    horrorPlane.position.add(direction.multiplyScalar(10));
-    horrorPlane.position.y += 5;
+    overlay.appendChild(img);
+    document.body.appendChild(overlay);
     
-    // Orientasi menghadap player
-    horrorPlane.lookAt(camera.position);
-    
-    scene.add(horrorPlane);
-    
-    console.log("Horror image appeared!");
-    
-    // Hilangkan setelah 3 detik
+    // Remove after 2 seconds
     setTimeout(() => {
-        scene.remove(horrorPlane);
-        console.log("Horror image disappeared");
-    }, 3000);
+        document.body.removeChild(overlay);
+    }, 2000);
     
-    // Efek suara (opsional)
-    // if (horrorSound) {
-    //     horrorSound.play();
-    // }
+    console.log('Horror image shown');
 }
 
-// Fungsi untuk load gambar horror
-function loadHorrorImages() {
-    const horrorImagePaths = [
-        'static/2dmodel/photo0.jpg',
-        'static/2dmodel/photo1.jpg',
-        'static/2dmodel/photo2.jpg',
-        'static/2dmodel/photo3.jpg',
-        'static/2dmodel/photo4.jpg',
-        'static/2dmodel/photo5.jpg',
-        'static/2dmodel/photo6.jpg',
-        'static/2dmodel/photo7.jpg',
-        'static/2dmodel/photo8.jpg',
-        'static/2dmodel/photo9.jpg'
-    ];
-
-    horrorImages = [];
-    
-    horrorImagePaths.forEach((path, index) => {
-        const loader = new THREE.TextureLoader();
-        loader.load(path, 
-            (texture) => {
-                horrorImages.push(texture);
-                console.log(`Horror image ${path} loaded`);
-                if (horrorImages.length === horrorImagePaths.length) {
-                    horrorImagesLoaded = true;
-                    console.log("All horror images loaded (photo0-photo9)");
-                }
-            },
-            undefined,
-            (error) => {
-                console.log(`Failed to load horror image: ${path}`);
-            }
-        );
-    });
-}
-
-// Panggil loadHorrorImages() di akhir fungsi init()
-// Tambahkan di akhir init():
-loadHorrorImages();
+// Call createSimpleStreetlamps in init function
+// Add this to your init() function after createGround():
+createSimpleStreetlamps();
     </script>
 </body>
 </html>
