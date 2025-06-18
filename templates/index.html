@@ -539,7 +539,7 @@ let ghostSpawned = false;
                 const loader = new GLTFLoader();
                 const gltf = await loader.loadAsync('/model/1994_Nissan_180MX.glb');
                 const car = gltf.scene;
-                car.position.set(-1163, 13, -8);
+                car.position.set(-1163, 13, 30);
                 car.scale.set(6, 6, 6);
                 car.rotation.y = Math.PI / 2;
 
@@ -556,7 +556,8 @@ let ghostSpawned = false;
 
                 scene.add(car);
                 carModel = car;
-                carCollisionBox = createCollisionBox(car, 0, 10, 0, 1, 1, 1);
+                // HAPUS atau COMMENT collision box mobil agar tidak ada collision sama sekali
+                // carCollisionBox = createCollisionBox(car, 0, 10, 0, 1, 1, 1);
             } catch (error) {
                 console.error('Error loading car model:', error);
             }
@@ -972,46 +973,51 @@ let ghostSpawned = false;
             flickerStreetLights();
 
             if (isDriving && carModel) {
-                // FIXED CAR MOVEMENT - Use car's forward direction instead of camera direction
-                const carForward = new THREE.Vector3(0, 0, 1).applyEuler(carModel.rotation).normalize();
-                const carRight = new THREE.Vector3(1, 0, 0).applyEuler(carModel.rotation).normalize();
+                // Ambil arah depan dan kanan dari kamera (hanya XZ)
+                const forward = new THREE.Vector3();
+                camera.getWorldDirection(forward);
+                forward.y = 0;
+                forward.normalize();
+                const right = new THREE.Vector3();
+                right.crossVectors(forward, camera.up).normalize();
 
-                // WASD for car movement relative to car's orientation
+                // WASD untuk arah relatif kamera
                 let driveDirection = new THREE.Vector3();
-                if (moveForward) driveDirection.add(carForward);
-                if (moveBackward) driveDirection.sub(carForward);
-                if (moveLeft) driveDirection.sub(carRight);
-                if (moveRight) driveDirection.add(carRight);
+                if (moveForward) driveDirection.add(forward);
+                if (moveBackward) driveDirection.sub(forward);
+                if (moveLeft) driveDirection.sub(right);
+                if (moveRight) driveDirection.add(right);
                 driveDirection.normalize();
 
-                // Calculate planned position
+                // Hitung posisi yang direncanakan
                 const plannedPosition = carModel.position.clone().addScaledVector(driveDirection, carSpeed * delta);
 
-                // Check collision before moving car
-                if (!checkCarCollisions(plannedPosition)) {
-                    // No collision, update car position
+                // HAPUS atau COMMENT bagian collision check
+                // Cek collision sebelum memindahkan mobil
+                // if (!checkCarCollisions(plannedPosition)) {
+                    // Tidak ada collision, update posisi mobil
                     carModel.position.copy(plannedPosition);
 
-                    // Update car collision box position
+                    // Update posisi collision box mobil (jika ada)
                     if (carCollisionBox) {
                         carCollisionBox.position.copy(carModel.position);
                     }
-                } else {
-                    // Collision detected, car doesn't move
-                    console.log("Car collision detected!");
-                }
+                // } else {
+                //     // Ada collision, mobil tidak bergerak
+                //     console.log("Car collision detected!");
+                // }
 
-                // Add car rotation when turning
+                // Tambahkan rotasi mobil saat belok
                 if (moveLeft || moveRight) {
-                    // Determine turn direction: left negative, right positive
+                    // Tentukan arah rotasi: kiri negatif, kanan positif
                     let turnDirection = 0;
                     if (moveLeft) turnDirection -= 1;
                     if (moveRight) turnDirection += 1;
 
-                    // Set rotation speed (radians per second)
-                    const turnSpeed = 1.5; // higher value = faster turning
+                    // Atur kecepatan rotasi (radian per detik)
+                    const turnSpeed = 1.5; // semakin besar semakin cepat belok
 
-                    // Update car Y rotation
+                    // Update rotasi Y mobil
                     carModel.rotation.y -= turnDirection * turnSpeed * delta;
                 }
 
@@ -2093,10 +2099,9 @@ function moveWithCollision(moveVector) {
     for (let i = 0; i < collisionObjects.length; i++) {
         const obj = collisionObjects[i];
         const distance = newPosition.distanceTo(obj.position);
-        if (distance < playerRadius + 10) { // Add some buffer
+        if (distance < playerRadius + 10) // Add some buffer
             collision = true;
             break;
-        }
     }
     
     if (!collision) {
@@ -2105,8 +2110,16 @@ function moveWithCollision(moveVector) {
 }
 
 function checkCarCollisions(plannedPosition) {
+    // SKIP collision check jika tidak ada carCollisionBox
+    if (!carCollisionBox) {
+        return false; // Tidak ada collision
+    }
+    
     for (let i = 0; i < collisionObjects.length; i++) {
         const obj = collisionObjects[i];
+        // Skip jika objek adalah collision box mobil sendiri
+        if (obj === carCollisionBox) continue;
+        
         const distance = plannedPosition.distanceTo(obj.position);
         if (distance < 30) { // Car collision radius
             return true; // Collision detected
