@@ -1902,7 +1902,7 @@ function collectEmerald(emerald, index) {
         setTimeout(() => {
             showRandomHorrorImage();
         }, 1000); // Delay 1 detik setelah mengambil emerald
-   
+
     }
     
     // Update UI
@@ -2124,7 +2124,7 @@ function onGameComplete() {
 function showRandomHorrorImage() {
     if (!horrorImagesLoaded || horrorImages.length === 0) return;
     
-    // Pilih gambar random
+    // Pilih gambar random dari photo0.jpg sampai photo9.jpg
     const randomIndex = Math.floor(Math.random() * horrorImages.length);
     const horrorTexture = horrorImages[randomIndex];
     
@@ -2164,6 +2164,46 @@ function showRandomHorrorImage() {
     //     horrorSound.play();
     // }
 }
+
+// Fungsi untuk load gambar horror
+function loadHorrorImages() {
+    const horrorImagePaths = [
+        'static/2dmodel/photo0.jpg',
+        'static/2dmodel/photo1.jpg',
+        'static/2dmodel/photo2.jpg',
+        'static/2dmodel/photo3.jpg',
+        'static/2dmodel/photo4.jpg',
+        'static/2dmodel/photo5.jpg',
+        'static/2dmodel/photo6.jpg',
+        'static/2dmodel/photo7.jpg',
+        'static/2dmodel/photo8.jpg',
+        'static/2dmodel/photo9.jpg'
+    ];
+
+    horrorImages = [];
+    
+    horrorImagePaths.forEach((path, index) => {
+        const loader = new THREE.TextureLoader();
+        loader.load(path, 
+            (texture) => {
+                horrorImages.push(texture);
+                console.log(`Horror image ${path} loaded`);
+                if (horrorImages.length === horrorImagePaths.length) {
+                    horrorImagesLoaded = true;
+                    console.log("All horror images loaded (photo0-photo9)");
+                }
+            },
+            undefined,
+            (error) => {
+                console.log(`Failed to load horror image: ${path}`);
+            }
+        );
+    });
+}
+
+// Panggil loadHorrorImages() di akhir fungsi init()
+// Tambahkan di akhir init():
+loadHorrorImages();
     </script>
 </body>
 </html>
