@@ -1867,7 +1867,7 @@ function collectEmerald(emerald, index) {
     chaosEmeralds[index] = null;
     collectedEmeralds++;
     
-    // **TRIGGER HORROR IMAGE UNTUK EMERALD PERTAMA**
+    // **PERBAIKAN: TAMPILKAN GAMBAR HORROR UNTUK SETIAP EMERALD**
     if (collectedEmeralds === 1 && !firstEmeraldCollected) {
         firstEmeraldCollected = true;
         console.log("First emerald collected - triggering horror image!");
@@ -1880,6 +1880,16 @@ function collectEmerald(emerald, index) {
                 ghostSpawned = true;
             }
         }, 1000); // Delay 1 detik setelah mengambil emerald
+    } else if (collectedEmeralds > 1) {
+        // TAMBAHAN: Tampilkan gambar horror untuk emerald ke-2 dan seterusnya
+        console.log(`Emerald ${collectedEmeralds} collected - triggering horror image!`);
+        
+        // Peluang 70% untuk menampilkan gambar horror (agar tidak terlalu sering)
+        if (Math.random() < 0.7) {
+            setTimeout(() => {
+                showRandomHorrorImage();
+            }, 500 + Math.random() * 1500); // Delay acak antara 0.5-2 detik
+        }
     }
     
     // Update UI
@@ -2158,10 +2168,15 @@ function loadHorrorImages() {
 }
 
 function showRandomHorrorImage() {
-    if (!horrorImagesLoaded || horrorImages.length === 0) return;
+    if (!horrorImagesLoaded || horrorImages.length === 0) {
+        console.log("Horror images not loaded or empty");
+        return;
+    }
     
     const randomIndex = Math.floor(Math.random() * horrorImages.length);
     const imageUrl = horrorImages[randomIndex];
+    
+    console.log(`Showing horror image: ${imageUrl}`);
     
     // Create horror image overlay
     const overlay = document.createElement('div');
@@ -2170,27 +2185,49 @@ function showRandomHorrorImage() {
     overlay.style.left = '0';
     overlay.style.width = '100vw';
     overlay.style.height = '100vh';
-    overlay.style.backgroundColor = 'rgba(0,0,0,0.9)';
+    overlay.style.backgroundColor = 'rgba(0,0,0,0.95)';
     overlay.style.zIndex = '9999';
     overlay.style.display = 'flex';
     overlay.style.justifyContent = 'center';
     overlay.style.alignItems = 'center';
+    overlay.style.cursor = 'pointer'; // Tambahkan cursor pointer
     
     const img = document.createElement('img');
     img.src = imageUrl;
-    img.style.maxWidth = '80%';
-    img.style.maxHeight = '80%';
+    img.style.maxWidth = '90%';
+    img.style.maxHeight = '90%';
     img.style.objectFit = 'contain';
+    img.style.border = '3px solid #ff0000';
+    img.style.boxShadow = '0 0 30px rgba(255,0,0,0.5)';
+    
+    // Tambahkan efek fade in
+    overlay.style.opacity = '0';
+    overlay.style.transition = 'opacity 0.3s ease-in-out';
     
     overlay.appendChild(img);
     document.body.appendChild(overlay);
     
-    // Remove after 2 seconds
+    // Fade in
     setTimeout(() => {
-        document.body.removeChild(overlay);
-    }, 2000);
+        overlay.style.opacity = '1';
+    }, 10);
     
-    console.log('Horror image shown');
+    // Click to close atau auto close setelah 3 detik
+    const closeImage = () => {
+        overlay.style.opacity = '0';
+        setTimeout(() => {
+            if (overlay.parentNode) {
+                document.body.removeChild(overlay);
+            }
+        }, 300);
+    };
+    
+    overlay.addEventListener('click', closeImage);
+    
+    // Auto close setelah 3 detik
+    setTimeout(closeImage, 3000);
+    
+    console.log('Horror image shown successfully');
 }
 
 // Call createSimpleStreetlamps in init function
