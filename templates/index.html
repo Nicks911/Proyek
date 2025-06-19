@@ -1583,7 +1583,7 @@ checkGhostProximity();
                 scene.add(policeStation);
 
                 // Tambahkan collision box
-                createCollisionBox(policeStation, 0, 10, 0, 0.7, 0.7, 0.7);
+                createCollisionBox(policeStation, 0, 10, 0, 0.55, 0.55, 0.65);
             } catch (error) {
                 console.error('Gagal memuat model police station:', error);
             }
@@ -1835,7 +1835,7 @@ async function loadGhostModel() {
         const gltf = await loader.loadAsync('/model/low_poly_ghost_character.glb');
         const ghost = gltf.scene;
         // Sesuaikan posisi, skala dan rotasi
-        ghost.position.set(-775, 10, -100);
+        ghost.position.set(-1223, 10, -28);
         ghost.scale.set(1, 1, 1);
         ghost.rotation.y = Math.PI / 4;
 
@@ -1869,8 +1869,8 @@ async function loadChaosEmeraldModel() {
         
         // Create 10 emeralds at different positions
         const emeraldPositions = [
-            { x: 0, y: 5, z: 0 },
-            { x: -715.01, y: 5, z: -389.81 },
+            { x: 220, y: 5, z: -358 },
+            { x: -914.17, y: 5, z: -375.40 },
             { x: -483.04, y: 5, z: 194.15 },
             { x: -142.41, y: 5, z: -366.10 },
             { x: 360, y: 5, z: -182.67 },
@@ -1878,8 +1878,8 @@ async function loadChaosEmeraldModel() {
             { x: -300, y: 5, z: 0 } // didalam rumah sakit
             ,
             { x: 500, y: 5, z: 0 },
-            { x: 0, y: 5, z: 0 },
-            { x: 242.86, y: 13, z: 332.78 }
+            { x: 676, y: 5, z: 354 },
+            { x: 233.86, y: 13, z: 381.78 }
         ];
 
         for (let i = 0; i < TOTAL_EMERALDS; i++) {
