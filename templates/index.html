@@ -53,7 +53,7 @@
         let moveRight = false;
         let velocity = new THREE.Vector3();
         let prevTime = performance.now();
-        const speed = 300.0;
+        const speed = 100.0;
 
         // Deklarasikan variabel global untuk lampu dan status mode
         let ambientLight, directionalLight;
@@ -120,7 +120,7 @@ let isCreepySingingPlaying = false;
 let creepyTriggered = false;
 
 // Add these global variables at the top with other declarations
-let ghostSpeed = 150.0; // Half of player speed (player speed is 300.0)
+let ghostSpeed = 25.0; // Half of player speed (player speed is 300.0)
 let ghostMinDistance = 20; // Minimum distance the ghost will maintain from player
 let ghostActive = false; // Track if the ghost is actively chasing
 
@@ -424,41 +424,72 @@ let ghostSpawned = false;
             // scene.add(gridHelper);
         }
 
-        // Fungsi untuk membuat bounding box pada objek 3D
-        function createCollisionBox(object, offsetX = 0, offsetY = 0, offsetZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1) {
-            // Buat bounding box helper untuk visualisasi (opsional, dapat dikomentari untuk produksi)
-            // const boxHelper = new THREE.BoxHelper(object, 0xff0000);
-            // scene.add(boxHelper);
-            
-            // Hitung bounding box objek
-            const bbox = new THREE.Box3().setFromObject(object);
-            
-            // Buat custom collision box dengan mesh tak terlihat
-            const width = (bbox.max.x - bbox.min.x) * scaleX;
-            const height = (bbox.max.y - bbox.min.y) * scaleY;
-            const depth = (bbox.max.z - bbox.min.z) * scaleZ;
-            
-            const collisionGeometry = new THREE.BoxGeometry(width, height, depth);
-            const collisionMaterial = new THREE.MeshBasicMaterial({
-                color: 0xff0000,
-                wireframe: true,
-                visible: false // Set ke true untuk debugging
-            });
-            
-            const collisionMesh = new THREE.Mesh(collisionGeometry, collisionMaterial);
-            
-            // Posisikan collision box di tengah objek + offset
-            collisionMesh.position.set(
-                (bbox.min.x + bbox.max.x) / 2 + offsetX,
-                (bbox.min.y + bbox.max.y) / 2 + offsetY,
-                (bbox.min.z + bbox.max.z) / 2 + offsetZ
-            );
-            
-            scene.add(collisionMesh);
-            collisionObjects.push(collisionMesh);
-            
-            return collisionMesh;
-        }
+        // Improved collision box function with visibility for debugging
+function createCollisionBox(object, offsetX = 0, offsetY = 0, offsetZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1) {
+    // Debug mode - set to true to see collision boxes
+    const debugCollisions = true;
+    
+    // Calculate the bounding box of the object
+    const bbox = new THREE.Box3().setFromObject(object);
+    
+    // Make sure the bounding box is valid
+    if (bbox.isEmpty()) {
+        console.warn('Empty bounding box detected for object:', object);
+        
+        // Use object's position and a default size for empty bounding boxes
+        const defaultSize = 20;
+        const collisionGeometry = new THREE.BoxGeometry(defaultSize, defaultSize, defaultSize);
+        const collisionMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff0000,
+            wireframe: true,
+            transparent: true,
+            opacity: debugCollisions ? 0.5 : 0,
+            visible: debugCollisions
+        });
+        
+        const collisionMesh = new THREE.Mesh(collisionGeometry, collisionMaterial);
+        collisionMesh.position.copy(object.position);
+        
+        scene.add(collisionMesh);
+        collisionObjects.push(collisionMesh);
+        
+        return collisionMesh;
+    }
+    
+    // Create a properly sized collision box
+    const width = Math.max(5, (bbox.max.x - bbox.min.x) * scaleX);
+    const height = Math.max(5, (bbox.max.y - bbox.min.y) * scaleY);
+    const depth = Math.max(5, (bbox.max.z - bbox.min.z) * scaleZ);
+    
+    const collisionGeometry = new THREE.BoxGeometry(width, height, depth);
+    const collisionMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff0000,
+        wireframe: true,
+        transparent: true,
+        opacity: debugCollisions ? 0.5 : 0,
+        visible: debugCollisions
+    });
+    
+    const collisionMesh = new THREE.Mesh(collisionGeometry, collisionMaterial);
+    
+    // Position the collision box at the center of the object + offset
+    collisionMesh.position.set(
+        (bbox.min.x + bbox.max.x) / 2 + offsetX,
+        (bbox.min.y + bbox.max.y) / 2 + offsetY,
+        (bbox.min.z + bbox.max.z) / 2 + offsetZ
+    );
+    
+    // Add a helper box for visualization
+    if (debugCollisions) {
+        const boxHelper = new THREE.BoxHelper(collisionMesh, 0x00ff00);
+        scene.add(boxHelper);
+    }
+    
+    scene.add(collisionMesh);
+    collisionObjects.push(collisionMesh);
+    
+    return collisionMesh;
+}
 
         // Fungsi untuk membuat batas map (invisible walls)
         function createMapBoundaries() {
@@ -1843,7 +1874,7 @@ async function loadChaosEmeraldModel() {
             { x: -483.04, y: 5, z: 194.15 },
             { x: -142.41, y: 5, z: -366.10 },
             { x: 360, y: 5, z: -182.67 },
-            { x: 300, y: 5, z: 0 },
+            { x: 400, y: 5, z: 0 },
             { x: -300, y: 5, z: 0 } // didalam rumah sakit
             ,
             { x: 500, y: 5, z: 0 },
@@ -2203,24 +2234,92 @@ function checkCreepySoundTrigger() {
     }
 }
 
-// Missing collision functions
 function moveWithCollision(moveVector) {
-    const currentPosition = camera.position.clone();
-    const newPosition = currentPosition.clone().add(moveVector);
-    
-    // Simple collision detection
+    const originalPosition = camera.position.clone();
+    const newPosition = originalPosition.clone().add(moveVector);
+
+    // Define player's bounding box at the new position
+    const playerBox = new THREE.Box3(
+        new THREE.Vector3(
+            newPosition.x - playerRadius,
+            newPosition.y,                  // adjust if player stands higher
+            newPosition.z - playerRadius
+        ),
+        new THREE.Vector3(
+            newPosition.x + playerRadius,
+            newPosition.y + playerHeight,   // top of player
+            newPosition.z + playerRadius
+        )
+    );
+
+    // Check collisions via box intersection
     let collision = false;
     for (let i = 0; i < collisionObjects.length; i++) {
-        const obj = collisionObjects[i];
-        const distance = newPosition.distanceTo(obj.position);
-        if (distance < playerRadius + 10) // Add some buffer
+        const objBox = new THREE.Box3().setFromObject(collisionObjects[i]);
+        if (playerBox.intersectsBox(objBox)) {
             collision = true;
             break;
+        }
     }
-    
+
     if (!collision) {
         camera.position.copy(newPosition);
+        return;
     }
+
+    // Slide along X
+    const xMove = new THREE.Vector3(moveVector.x, 0, 0);
+    const xPos = originalPosition.clone().add(xMove);
+    const xBox = new THREE.Box3(
+        new THREE.Vector3(
+            xPos.x - playerRadius,
+            xPos.y,
+            xPos.z - playerRadius
+        ),
+        new THREE.Vector3(
+            xPos.x + playerRadius,
+            xPos.y + playerHeight,
+            xPos.z + playerRadius
+        )
+    );
+    let xCollision = false;
+    for (let i = 0; i < collisionObjects.length; i++) {
+        const objBox = new THREE.Box3().setFromObject(collisionObjects[i]);
+        if (xBox.intersectsBox(objBox)) {
+            xCollision = true;
+            break;
+        }
+    }
+    if (!xCollision) camera.position.copy(xPos);
+
+    // Slide along Z
+    const zMove = new THREE.Vector3(0, 0, moveVector.z);
+    const zPos = originalPosition.clone();
+    if (!xCollision) zPos.copy(camera.position); // If we already moved X
+    zPos.add(zMove);
+
+    const zBox = new THREE.Box3(
+        new THREE.Vector3(
+            zPos.x - playerRadius,
+            zPos.y,
+            zPos.z - playerRadius
+        ),
+        new THREE.Vector3(
+            zPos.x + playerRadius,
+            zPos.y + playerHeight,
+            zPos.z + playerRadius
+        )
+    );
+
+    let zCollision = false;
+    for (let i = 0; i < collisionObjects.length; i++) {
+        const objBox = new THREE.Box3().setFromObject(collisionObjects[i]);
+        if (zBox.intersectsBox(objBox)) {
+            zCollision = true;
+            break;
+        }
+    }
+    if (!zCollision) camera.position.copy(zPos);
 }
 
 function checkCarCollisions(plannedPosition) {
@@ -2345,7 +2444,7 @@ function showRandomHorrorImage() {
     overlay.addEventListener('click', closeImage);
     
     // Auto close setelah 3 detik
-    setTimeout(closeImage, 3000);
+    setTimeout(closeImage, 1000);
     
     console.log('Horror image shown successfully with sound');
 }
