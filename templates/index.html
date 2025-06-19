@@ -119,6 +119,11 @@ let isCreepySingingPlaying = false;
 // Tambahkan di global variables (di atas)
 let creepyTriggered = false;
 
+// Add these global variables at the top with other declarations
+let ghostSpeed = 150.0; // Half of player speed (player speed is 300.0)
+let ghostMinDistance = 20; // Minimum distance the ghost will maintain from player
+let ghostActive = false; // Track if the ghost is actively chasing
+
 // Tambahkan variabel global di atas
 let emeraldsLoaded = false;
 
@@ -300,6 +305,50 @@ let ghostSpawned = false;
             // Load horror images
             loadHorrorImages();
         }
+        
+        // Add this function to handle ghost movement
+        function updateGhostMovement(delta) {
+            // Only update if ghost exists and we're in night mode
+            if (!window.ghostModel || !isNight) return;
+            
+            // Only start chasing once ghost is fully spawned
+            if (!ghostActive && window.ghostModel.position.y > 5) {
+                ghostActive = true;
+            }
+            
+            if (!ghostActive) return;
+            
+            // Calculate direction vector from ghost to player
+            const ghostToPlayer = new THREE.Vector3();
+            ghostToPlayer.subVectors(camera.position, window.ghostModel.position);
+            
+            // Keep original y-position for floating effect
+            const originalY = window.ghostModel.position.y;
+            ghostToPlayer.y = 0; // Only move in XZ plane
+            
+            // Calculate distance to player
+            const distanceToPlayer = ghostToPlayer.length();
+            
+            // If player is close enough, stop pursuing
+            if (distanceToPlayer < ghostMinDistance) return;
+            
+            // Normalize direction vector
+            ghostToPlayer.normalize();
+            
+            // Move ghost towards player at half speed
+            const moveDistance = ghostSpeed * delta;
+            window.ghostModel.position.x += ghostToPlayer.x * moveDistance;
+            window.ghostModel.position.z += ghostToPlayer.z * moveDistance;
+            
+            // Keep the floating y-position from the original animation
+            const time = performance.now() * 0.001;
+            window.ghostModel.position.y = 5 + Math.sin(time * 2) * 3;
+            
+            // Make ghost face the player
+            window.ghostModel.lookAt(
+                new THREE.Vector3(camera.position.x, window.ghostModel.position.y, camera.position.z)
+            );
+        }
 
         function createFlashlight() {
             // Buat SpotLight untuk flashlight
@@ -452,6 +501,44 @@ let ghostSpawned = false;
             eastWall.position.set(mapWidth, wallHeight / 2, 0);
             scene.add(eastWall);
             collisionObjects.push(eastWall);
+        }
+
+        // Add this function for the panic effect
+        function checkGhostProximity() {
+            if (!window.ghostModel || !isNight) return;
+            
+            const distanceToGhost = camera.position.distanceTo(window.ghostModel.position);
+            
+            // If ghost is very close, create visual panic effect
+            if (distanceToGhost < 50) {
+                // Red vignette effect intensity based on proximity
+                const intensity = 1 - (distanceToGhost / 50);
+                
+                // Check if vignette overlay exists, create if not
+                let vignette = document.getElementById('ghost-vignette');
+                if (!vignette) {
+                    vignette = document.createElement('div');
+                    vignette.id = 'ghost-vignette';
+                    vignette.style.position = 'fixed';
+                    vignette.style.top = '0';
+                    vignette.style.left = '0';
+                    vignette.style.width = '100%';
+                    vignette.style.height = '100%';
+                    vignette.style.pointerEvents = 'none';
+                    vignette.style.boxShadow = 'inset 0 0 150px rgba(255,0,0,0)';
+                    vignette.style.zIndex = '1000';
+                    document.body.appendChild(vignette);
+                }
+                
+                // Update vignette intensity
+                vignette.style.boxShadow = `inset 0 0 150px rgba(255,0,0,${intensity * 0.8})`;
+            } else {
+                // Remove vignette when not close
+                const vignette = document.getElementById('ghost-vignette');
+                if (vignette) {
+                    vignette.remove();
+                }
+            }
         }
 
         async function loadHospitalModel() {
@@ -1158,9 +1245,7 @@ let ghostSpawned = false;
             
             // Animate ghost floating effect
             if (window.ghostModel) {
-                const time = performance.now() * 0.001;
-                window.ghostModel.position.y = 5 + Math.sin(time * 2) * 3; // Floating up and down
-                window.ghostModel.rotation.y += 0.005; // Slow rotation
+                updateGhostMovement(delta);
             }
             
             updateCompass();
@@ -1168,27 +1253,29 @@ let ghostSpawned = false;
             prevTime = time;
 
             // Tambahkan di dalam fungsi animate(), sebelum renderer.render(scene, camera);
-for (let i = 0; i < chaosEmeralds.length; i++) {
-    const emerald = chaosEmeralds[i];
-    if (emerald) {
-        // Efek berputar
-        emerald.rotation.y += 1.5 * delta;
+        for (let i = 0; i < chaosEmeralds.length; i++) {
+            const emerald = chaosEmeralds[i];
+            if (emerald) {
+                // Efek berputar
+                emerald.rotation.y += 1.5 * delta;
 
-        // Efek floating naik-turun
-        const baseY = emerald.userData.baseY !== undefined ? emerald.userData.baseY : emerald.position.y;
-        emerald.position.y = baseY + Math.sin(time * 0.002 + i) * 2;
-        emerald.userData.baseY = baseY;
+                // Efek floating naik-turun
+                const baseY = emerald.userData.baseY !== undefined ? emerald.userData.baseY : emerald.position.y;
+                emerald.position.y = baseY + Math.sin(time * 0.002 + i) * 2;
+                emerald.userData.baseY = baseY;
 
-        // Update posisi emeraldCollisionBoxes jika masih ada
-        if (emeraldCollisionBoxes[i]) {
-            emeraldCollisionBoxes[i].position.copy(emerald.position);
+                // Update posisi emeraldCollisionBoxes jika masih ada
+                if (emeraldCollisionBoxes[i]) {
+                    emeraldCollisionBoxes[i].position.copy(emerald.position);
+                }
+            }
         }
-    }
-}
 
 // Panggil checkEmeraldCollection() di akhir animate()
 checkEmeraldCollection();
 checkCreepySoundTrigger();
+// Add this line to animate() function before renderer.render()
+checkGhostProximity();
 
             renderer.render(scene, camera);
             
