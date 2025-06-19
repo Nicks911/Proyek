@@ -113,7 +113,7 @@
         let moon;
 
         // Tambahkan variabel global untuk kecepatan mobil
-        let carSpeed = 80; // default
+        let carSpeed = 120; // default
 
         // Add these global variables at the top
 let chaosEmeralds = [];
@@ -140,7 +140,7 @@ let isCreepySingingPlaying = false;
 let creepyTriggered = false;
 
 // Add these global variables at the top with other declarations
-let ghostSpeed = 40.0; // Half of player speed (player speed is 300.0)
+let ghostSpeed = 50.0; // Half of player speed (player speed is 300.0)
 let ghostMinDistance = 20; // Minimum distance the ghost will maintain from player
 let ghostActive = false; // Track if the ghost is actively chasing
 
@@ -453,7 +453,7 @@ let ghostSpawned = false;
         // Improved collision box function with visibility for debugging
 function createCollisionBox(object, offsetX = 0, offsetY = 0, offsetZ = 0, scaleX = 1, scaleY = 1, scaleZ = 1) {
     // Debug mode - set to true to see collision boxes
-    const debugCollisions = true;
+    const debugCollisions = false;
     
     // Calculate the bounding box of the object
     const bbox = new THREE.Box3().setFromObject(object);
@@ -2194,7 +2194,22 @@ function onGameComplete() {
         emeraldMsg.style.fontSize = "24px";
     }
     
-    console.log("Victory! Game completed and switched to day mode!");
+    const winOverlay = document.createElement('div');
+    winOverlay.id = 'win-overlay';
+    winOverlay.innerText = 'You WON!';
+    winOverlay.style.position = 'fixed';
+    winOverlay.style.top = '50%';
+    winOverlay.style.left = '50%';
+    winOverlay.style.transform = 'translate(-50%, -50%)';
+    winOverlay.style.color = '#FFF';
+    winOverlay.style.fontSize = '48px';
+    winOverlay.style.fontFamily = 'monospace';
+    winOverlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    winOverlay.style.padding = '20px 40px';
+    winOverlay.style.borderRadius = '10px';
+    winOverlay.style.textAlign = 'center';
+    winOverlay.style.zIndex = '9999';
+    document.body.appendChild(winOverlay);
 }
 
 // Add this function after the existing functions
